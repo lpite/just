@@ -1,0 +1,25 @@
+{
+  "name": "backend",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "gen-types": "DATABASE_URL='data/app.db' kysely-codegen --out-file ./db/db-types.ts",
+    "seed": "bun run scripts/seed.ts"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/bun": "latest",
+    "kysely-codegen": "^0.20.0",
+    "prettier": "^3.9.8"
+  },
+  "peerDependencies": {
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "hono": "^4.13.8",
+    "kysely": "^0.29.6",
+    "minisearch": "^7.2.0"
+  }
+}
