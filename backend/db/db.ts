@@ -1,9 +1,8 @@
 import Database from "better-sqlite3";
-import { Kysely, SqliteDialect } from "kysely";
+import { Kysely, SqliteDialect, sql } from "kysely";
 import { config } from "../config";
 
 import type { DB } from "./db-types";
-import { sql } from "bun";
 
 export const db = new Kysely<DB>({
   dialect: new SqliteDialect({
@@ -55,7 +54,7 @@ export async function initSchema() {
     .addColumn("price", "real", (c) => c.notNull().defaultTo(0))
     .addColumn("quantity", "real", (c) => c.notNull().defaultTo(0))
     .addColumn("created_at", "text", (c) =>
-      c.notNull().defaultTo(sql`datetime('now')`),
+      c.notNull().defaultTo(sql`(datetime('now'))`),
     )
     .execute();
 

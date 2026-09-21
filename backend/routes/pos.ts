@@ -51,8 +51,7 @@ posRouter.post("/", async (c) => {
 				.orderBy("sales_document.date", "desc")
 				.executeTakeFirstOrThrow();
 
-			console.log(sum.toFixed(2));
-			return c.text(`${sum.toFixed(2)}`);
+			return c.text(sum?.toFixed(2) || "0");
 		}
 		case "GET:/shop/hs/api/search": {
 			const qArray = json.query
@@ -92,16 +91,20 @@ posRouter.post("/", async (c) => {
 				.select([
 					"partner.id as partnerId",
 					"partner.name as partnerName",
-					sql`json_group_array(
+					sql`coalesce(
+						json_group_array(
 							json_object(
-								'searchCode',product.id,
-								'name',product.name,
-								'time', datetime('now'),
-								'price',sales_document_item.price,
-								'quantity',sales_document_item.quantity,
-								'sum',sales_document_item.price * sales_document_item.quantity,
-								'places',product.places
-								))`.as("products"),
+								'searchCode', product.id,
+								'name', product.name,
+								'time', sales_document_item.created_at,
+								'price', sales_document_item.price,
+								'quantity', sales_document_item.quantity,
+								'sum', sales_document_item.price * sales_document_item.quantity,
+								'places', product.places
+							)
+						) FILTER (WHERE product.id IS NOT NULL),
+						json('[]')
+					)`.as("products"),
 					sql`strftime('%d',date)`.as("date"),
 					sql`sum(sales_document_item.price * sales_document_item.quantity)`.as(
 						"sum",
@@ -117,9 +120,9 @@ posRouter.post("/", async (c) => {
 				sales_documents.map((d) => ({
 					products: d.products.map((el) => ({
 						...el,
-						place1: el.places[0] || "",
-						place2: el.places[1] || "",
-						place3: el.places[2] || "",
+						place1: el?.places[0] || "",
+						place2: el?.places[1] || "",
+						place3: el?.places[2] || "",
 					})),
 					// products:[],
 					type: "sale",

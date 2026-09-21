@@ -14,6 +14,8 @@ import posRouter from "./routes/pos";
 import shopRouter from "./routes/shop";
 import searchRoutes from "./routes/search";
 
+initSchema()
+
 const app = new Hono();
 
 app.use(
@@ -49,7 +51,6 @@ app.get("/api", (c) => {
 	});
 });
 
-// Register CRUD routes
 app.route("/api/products", productsRouter);
 app.route("/api/partners", partnersRouter);
 app.route("/api/sales-documents", salesDocumentsRouter);
@@ -69,7 +70,6 @@ app.get(
 		path: "index.html",
 	}),
 );
-// initSchema()
 
 export default {
 	port: 3000,
