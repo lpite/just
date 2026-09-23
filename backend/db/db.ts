@@ -23,6 +23,7 @@ export async function initSchema() {
     .addColumn("brand", "text", (c) => c.notNull().defaultTo(""))
     .addColumn("units", "text", (c) => c.notNull().defaultTo(""))
     .addColumn("places", "text", (c) => c.notNull().defaultTo("[]"))
+    .addColumn("photos", "text", (c) => c.notNull().defaultTo("[]"))
     .execute();
 
   await db.schema

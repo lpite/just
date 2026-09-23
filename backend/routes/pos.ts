@@ -105,7 +105,7 @@ posRouter.post("/", async (c) => {
 						) FILTER (WHERE product.id IS NOT NULL),
 						json('[]')
 					)`.as("products"),
-					sql`strftime('%d',date)`.as("date"),
+					"date",
 					sql`sum(sales_document_item.price * sales_document_item.quantity)`.as(
 						"sum",
 					),
@@ -114,8 +114,8 @@ posRouter.post("/", async (c) => {
 				.withPlugin(new ParseJSONResultsPlugin())
 				.execute();
 
-			const currentDay = new Date().getDate().toString();
-			console.log(sales_documents[0]?.products);
+			const currentDate = new Date().toISOString().split("T")[0];
+
 			return c.json(
 				sales_documents.map((d) => ({
 					products: d.products.map((el) => ({
@@ -126,7 +126,10 @@ posRouter.post("/", async (c) => {
 					})),
 					// products:[],
 					type: "sale",
-					day: currentDay === d.date ? "today" : "yesterday",
+					day:
+						currentDate === d.date.split(" ")[0]
+							? "today"
+							: "yesterday",
 					partnerName: d.partnerName,
 					partnerId: d.partnerId,
 					sum: d.sum || 0,
@@ -135,43 +138,61 @@ posRouter.post("/", async (c) => {
 			);
 		}
 		case "POST:/shop/hs/pos/sell": {
-			console.log(json.body.products);
+			const currentDate = new Date().toISOString().split("T")[0];
+
+			for (const product of json.body.products) {
+				if (product.quantity <= 0) {
+					return c.text("product quantity cant be 0 or less", 400);
+				}
+			}
+
 			const document = await db
 				.selectFrom("sales_document")
 				.selectAll()
 				.where("partner_id", "=", json.body.partnerId)
+				.where(sql<any>`strftime('%Y-%m-%d',date) = ${currentDate}`)
 				.orderBy("date", "desc")
 				.executeTakeFirst();
 
-			if (document) {
-				await db.transaction().execute(async (trx) => {
-					await trx
-						.insertInto("sales_document_item")
-						.values(
-							json.body.products.map((p) => ({
-								product_id: Number(p.id),
-								document_id: document.id,
-								price: p.price,
-								quantity: p.quantity,
-							})),
-						)
-						.executeTakeFirstOrThrow();
+			let documentId = document?.id;
 
-					await trx
-						.insertInto("product_stock")
-						.values(
-							json.body.products.map((p) => ({
-								product_id: Number(p.id),
-								document_id: document.id,
-								quantity: -p.quantity,
-								timestamp: new Date().toISOString(),
-							})),
-						)
-						.execute();
-				});
-			} else {
-				return c.text("NO DOC", 500);
-			}
+			await db.transaction().execute(async (trx) => {
+				if (!documentId) {
+					const newDocument = await trx
+						.insertInto("sales_document")
+						.values({
+							partner_id: json.body.partnerId,
+							posted: 1,
+							date:sql`datetime('now')`
+						})
+						.returning("id")
+						.executeTakeFirstOrThrow();
+					documentId = newDocument.id;
+				}
+				await trx
+					.insertInto("sales_document_item")
+					.values(
+						json.body.products.map((p: any) => ({
+							product_id: Number(p.id),
+							document_id: documentId,
+							price: p.price,
+							quantity: p.quantity,
+						})),
+					)
+					.executeTakeFirstOrThrow();
+
+				await trx
+					.insertInto("product_stock")
+					.values(
+						json.body.products.map((p) => ({
+							product_id: Number(p.id),
+							document_id: documentId,
+							quantity: -p.quantity,
+							timestamp: new Date().toISOString(),
+						})),
+					)
+					.execute();
+			});
 
 			return c.text("success");
 		}

@@ -23,22 +23,36 @@ interface TestProduct {
 
 const dbPath = path.resolve(process.cwd(), config.DATABASE_URL);
 const jsonPath = path.resolve(process.cwd(), "test-data/product.json");
+const product2Path = path.resolve(process.cwd(), "test-data/product2.json");
+const photoPath = path.resolve(process.cwd(), "test-data/product-photo.json");
 
-if (!fs.existsSync(jsonPath)) {
-  console.error("Test data file not found:", jsonPath);
-  process.exit(1);
+function parseJson(filePath: string): any[] {
+  if (!fs.existsSync(filePath)) {
+    console.error("Test data file not found:", filePath);
+    process.exit(1);
+  }
+  const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error(`Failed to parse ${filePath}:`, err);
+    process.exit(1);
+  }
 }
 
-const raw = fs.readFileSync(jsonPath, "utf8").replace(/^\uFEFF/, "");
-let products: TestProduct[];
-try {
-  products = JSON.parse(raw);
-} catch (err) {
-  console.error("Failed to parse product.json:", err);
-  process.exit(1);
-}
+const products = parseJson(jsonPath) as TestProduct[];
+const product2 = parseJson(product2Path) as {
+  searchCode: string;
+  manufacturer?: string;
+}[];
+const productPhotos = parseJson(photoPath) as {
+  productId: string;
+  path: string;
+}[];
 
 console.log(`Loaded ${products.length} products from ${jsonPath}`);
+console.log(`Loaded ${product2.length} rows from ${product2Path}`);
+console.log(`Loaded ${productPhotos.length} photos from ${photoPath}`);
 
 const db = new Database(dbPath);
 
@@ -154,8 +168,56 @@ const insertAll = db.transaction(() => {
   return { stockCount, priceCount };
 });
 
+const brandBySearchCode = new Map<string, string>();
+for (const row of product2) {
+  if (row.manufacturer) {
+    brandBySearchCode.set(row.searchCode, row.manufacturer);
+  }
+}
+
+const photosBySearchCode = new Map<string, string[]>();
+for (const photo of productPhotos) {
+  const match = photo.productId.match(/(\d+)$/);
+  if (!match) continue;
+  const key = String(Number(match[1]));
+  const path = photo.path.replace(/\\/g, "/");
+  const list = photosBySearchCode.get(key) || [];
+  if (!list.includes(path)) {
+    list.push(path);
+  }
+  photosBySearchCode.set(key, list);
+}
+
+const updateBrand = db.prepare(`UPDATE product SET brand = @brand WHERE id = @id`);
+const updatePhotos = db.prepare(
+  `UPDATE product SET photos = @photos WHERE id = @id`,
+);
+
+const updateAll = db.transaction(() => {
+  let brandCount = 0;
+  let photoCount = 0;
+  for (const p of products) {
+    const id = Number(p.searchCode);
+    if (!id) continue;
+
+    const brand = brandBySearchCode.get(p.searchCode);
+    if (brand) {
+      updateBrand.run({ brand, id });
+      brandCount++;
+    }
+
+    const photos = photosBySearchCode.get(String(id));
+    if (photos?.length) {
+      updatePhotos.run({ photos: JSON.stringify(photos), id });
+      photoCount++;
+    }
+  }
+  return { brandCount, photoCount };
+});
+
 const startedAt = Date.now();
 const result = insertAll();
+const updateResult = updateAll();
 const elapsed = ((Date.now() - startedAt) / 1000).toFixed(2);
 
 const totals = {
@@ -183,5 +245,8 @@ console.log(
   `  product_price:    ${totals.prices} (${result.priceCount} added)`,
 );
 console.log(`  income_documents: ${totals.docs}`);
+console.log("Updates done:");
+console.log(`  brands:           ${updateResult.brandCount}`);
+console.log(`  photos:           ${updateResult.photoCount}`);
 
 db.close();

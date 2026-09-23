@@ -60,13 +60,13 @@ incomeDocumentsRouter.post("/", async (c) => {
       .values({ 
         date: date || new Date().toISOString(), 
         partner_id,
-        posted: false
+        posted: 0
       })
+      .returning("id")
       .executeTakeFirstOrThrow();
 
-    const documentId = result.insertId;
+    const documentId = result.id;
 
-    // Insert items if provided
     if (items && items.length > 0) {
       await db
         .insertInto("income_document_item")
