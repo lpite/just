@@ -13,42 +13,43 @@ import priceSettingDocumentsRouter from "./routes/price-setting-documents";
 import posRouter from "./routes/pos";
 import shopRouter from "./routes/shop";
 import searchRoutes from "./routes/search";
+import productPhotoRouter from "./routes/product-photo";
 
-initSchema()
+initSchema();
 
 const app = new Hono();
 
 app.use(
-	"*",
-	cors({
-		allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-		allowHeaders: ["Content-Type", "Authorization"],
-		origin: "",
-	}),
+  "*",
+  cors({
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    origin: "",
+  }),
 );
 
 app.use(async (c, next) => {
-	const start = Date.now();
-	const method = c.req.method;
-	const path = c.req.path;
+  const start = Date.now();
+  const method = c.req.method;
+  const path = c.req.path;
 
-	await next();
+  await next();
 
-	const duration = Date.now() - start;
-	const status = c.res.status;
+  const duration = Date.now() - start;
+  const status = c.res.status;
 
-	logger.info(`${method} ${path} - ${status} (${duration}ms)`);
+  logger.info(`${method} ${path} - ${status} (${duration}ms)`);
 });
 
 app.get("/health", (c) => {
-	return c.json({ status: "ok", timestamp: new Date().toISOString() });
+  return c.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 app.get("/api", (c) => {
-	return c.json({
-		name: "ERP Backend",
-		version: "1.0.0",
-	});
+  return c.json({
+    name: "ERP Backend",
+    version: "1.0.0",
+  });
 });
 
 app.route("/api/products", productsRouter);
@@ -61,18 +62,19 @@ app.route("/api/price-setting-documents", priceSettingDocumentsRouter);
 app.route("/1c_connector/index.php", posRouter);
 app.route("/shop/hs", shopRouter);
 app.route("/search", searchRoutes);
+app.route("/api/get-photo.php", productPhotoRouter);
 
 app.use("*", serveStatic({ root: "./static" }));
 app.get(
-	"*",
-	serveStatic({
-		root: "./static",
-		path: "index.html",
-	}),
+  "*",
+  serveStatic({
+    root: "./static",
+    path: "index.html",
+  }),
 );
 
 export default {
-	port: 3000,
-	fetch: app.fetch,
-	hostname: "0.0.0.0",
+  port: 3000,
+  fetch: app.fetch,
+  hostname: "0.0.0.0",
 };

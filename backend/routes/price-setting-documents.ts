@@ -53,9 +53,9 @@ priceSettingDocumentsRouter.post("/", async (c) => {
 
     const result = await db
       .insertInto("price_setting_document")
-      .values({ 
+      .values({
         date: date || new Date().toISOString(),
-        posted: 0
+        posted: 0,
       })
       .executeTakeFirstOrThrow();
 
@@ -69,14 +69,14 @@ priceSettingDocumentsRouter.post("/", async (c) => {
             document_id: documentId,
             product_id: item.product_id,
             price: item.price,
-          }))
+          })),
         )
         .execute();
     }
 
     return c.json(
       { data: { id: documentId, date, posted: false, items } },
-      201
+      201,
     );
   } catch (error) {
     logger.error("Failed to create price setting document", error);
@@ -118,7 +118,7 @@ priceSettingDocumentsRouter.post("/:id/post", async (c) => {
               product_id: item.product_id,
               price: item.price,
               timestamp: new Date().toISOString(),
-            }))
+            })),
           )
           .execute();
       }
@@ -131,9 +131,9 @@ priceSettingDocumentsRouter.post("/:id/post", async (c) => {
       .where("id", "=", id)
       .execute();
 
-    return c.json({ 
-      data: { id, posted: true }, 
-      message: "Price setting document posted successfully" 
+    return c.json({
+      data: { id, posted: true },
+      message: "Price setting document posted successfully",
     });
   } catch (error) {
     logger.error("Failed to post price setting document", error);
@@ -196,9 +196,9 @@ priceSettingDocumentsRouter.delete("/:id/post", async (c) => {
       .where("id", "=", id)
       .execute();
 
-    return c.json({ 
-      data: { id, posted: false }, 
-      message: "Price setting document unposted successfully" 
+    return c.json({
+      data: { id, posted: false },
+      message: "Price setting document unposted successfully",
     });
   } catch (error) {
     logger.error("Failed to unpost price setting document", error);
@@ -222,10 +222,7 @@ priceSettingDocumentsRouter.put("/:id", async (c) => {
     return c.json({ data: { id, date } });
   } catch (error) {
     logger.error("Failed to update price setting document", error);
-    return c.json(
-      { error: "Failed to update price setting document" },
-      500
-    );
+    return c.json({ error: "Failed to update price setting document" }, 500);
   }
 });
 

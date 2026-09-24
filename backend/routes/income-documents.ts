@@ -57,10 +57,10 @@ incomeDocumentsRouter.post("/", async (c) => {
 
     const result = await db
       .insertInto("income_document")
-      .values({ 
-        date: date || new Date().toISOString(), 
+      .values({
+        date: date || new Date().toISOString(),
         partner_id,
-        posted: 0
+        posted: 0,
       })
       .returning("id")
       .executeTakeFirstOrThrow();
@@ -76,14 +76,14 @@ incomeDocumentsRouter.post("/", async (c) => {
             product_id: item.product_id,
             price: item.price,
             quantity: item.quantity,
-          }))
+          })),
         )
         .execute();
     }
 
     return c.json(
       { data: { id: documentId, date, partner_id, posted: false, items } },
-      201
+      201,
     );
   } catch (error) {
     logger.error("Failed to create income document", error);
@@ -96,7 +96,6 @@ incomeDocumentsRouter.post("/:id/post", async (c) => {
   try {
     const id = parseInt(c.req.param("id"));
 
-    // Get the document
     const document = await db
       .selectFrom("income_document")
       .selectAll()
@@ -125,7 +124,7 @@ incomeDocumentsRouter.post("/:id/post", async (c) => {
               product_id: item.product_id,
               quantity: item.quantity, // Positive for income
               timestamp: new Date().toISOString(),
-            }))
+            })),
           )
           .execute();
       }
@@ -138,9 +137,9 @@ incomeDocumentsRouter.post("/:id/post", async (c) => {
       .where("id", "=", id)
       .execute();
 
-    return c.json({ 
-      data: { id, posted: true }, 
-      message: "Income document posted successfully" 
+    return c.json({
+      data: { id, posted: true },
+      message: "Income document posted successfully",
     });
   } catch (error) {
     logger.error("Failed to post income document", error);
@@ -148,12 +147,10 @@ incomeDocumentsRouter.post("/:id/post", async (c) => {
   }
 });
 
-// DELETE endpoint to unpost income document (removes stock records)
-incomeDocumentsRouter.delete("/:id/post", async (c) => {
+incomeDocumentsRouter.post("/:id/unpost", async (c) => {
   try {
     const id = parseInt(c.req.param("id"));
-
-    // Get the document
+    throw new Error("not implemented");
     const document = await db
       .selectFrom("income_document")
       .selectAll()
@@ -164,41 +161,46 @@ incomeDocumentsRouter.delete("/:id/post", async (c) => {
       return c.json({ error: "Income document not found" }, 404);
     }
 
-    // If not posted, no need to unpost
-    if (document.posted) {
-      // Get document items
-      const items = await db
+    await db.transaction().execute(async (trx) => {
+      x;
+      if (document.posted) {
+        await trx
+          .deleteFrom("product_stock")
+          .where("document_id", "=", document.id)
+          .where("product_stock.quantity", ">", 0)
+          .execute();
+      }
+
+      const items = await trx
         .selectFrom("income_document_item")
         .selectAll()
         .where("document_id", "=", id)
         .execute();
 
-      // Remove product stock records (reverse the transaction)
       if (items.length > 0) {
-        // We add negative quantity to reverse the positive quantities
-        await db
+        await trx
           .insertInto("product_stock")
           .values(
             items.map((item) => ({
               product_id: item.product_id,
-              quantity: -item.quantity, // Negative to reverse the positive
+              quantity: item.quantity,
               timestamp: new Date().toISOString(),
-            }))
+              document_id: document.id,
+            })),
           )
           .execute();
       }
-    }
 
-    // Mark document as not posted
-    await db
-      .updateTable("income_document")
-      .set({ posted: false })
-      .where("id", "=", id)
-      .execute();
+      await trx
+        .updateTable("income_document")
+        .set({ posted: 1 })
+        .where("id", "=", id)
+        .execute();
+    });
 
-    return c.json({ 
-      data: { id, posted: false }, 
-      message: "Income document unposted successfully" 
+    return c.json({
+      data: { id, posted: false },
+      message: "Income document unposted successfully",
     });
   } catch (error) {
     logger.error("Failed to unpost income document", error);

@@ -81,7 +81,7 @@ export async function initSchema() {
   await db.schema
     .createTable("income_document")
     .ifNotExists()
-    .addColumn("id", "integer", (c) => c.primaryKey().autoIncrement())
+    .addColumn("id", "integer", (c) => c.primaryKey().notNull().autoIncrement())
     .addColumn("date", "datetime")
     .addColumn("partner_id", "integer", (c) => c.references("partner.id"))
     .addColumn("posted", "boolean", (c) => c.defaultTo(false))
@@ -92,9 +92,11 @@ export async function initSchema() {
     .ifNotExists()
     .addColumn("id", "integer", (c) => c.primaryKey().autoIncrement())
     .addColumn("document_id", "integer", (c) =>
-      c.references("income_document.id"),
+      c.notNull().references("income_document.id"),
     )
-    .addColumn("product_id", "integer", (c) => c.references("product.id"))
+    .addColumn("product_id", "integer", (c) =>
+      c.notNull().references("product.id"),
+    )
     .addColumn("price", "real", (c) => c.notNull().defaultTo(0))
     .addColumn("quantity", "real", (c) => c.notNull().defaultTo(0))
     .execute();

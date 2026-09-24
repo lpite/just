@@ -53,7 +53,7 @@ partnersRouter.post("/", async (c) => {
 
     return c.json(
       { data: { id: result.numInsertedOrModifiedRows, name } },
-      201
+      201,
     );
   } catch (error) {
     logger.error("Failed to create partner", error);

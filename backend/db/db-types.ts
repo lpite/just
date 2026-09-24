@@ -5,22 +5,23 @@
 
 import type { ColumnType } from "kysely";
 
-export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
-  ? ColumnType<S, I | undefined, U>
-  : ColumnType<T, T | undefined, T>;
+export type Generated<T> =
+  T extends ColumnType<infer S, infer I, infer U>
+    ? ColumnType<S, I | undefined, U>
+    : ColumnType<T, T | undefined, T>;
 
 export interface IncomeDocument {
   date: string | null;
-  id: Generated<number | null>;
+  id: Generated<number>;
   partner_id: number | null;
   posted: Generated<number | null>;
 }
 
 export interface IncomeDocumentItem {
-  document_id: number | null;
+  document_id: number;
   id: Generated<number | null>;
   price: Generated<number>;
-  product_id: number | null;
+  product_id: number;
   quantity: Generated<number>;
 }
 
@@ -50,6 +51,7 @@ export interface Product {
   name: Generated<string>;
   nameAlt: Generated<string>;
   oem: Generated<string>;
+  photos: Generated<string>;
   places: Generated<string>;
   units: Generated<string>;
 }
@@ -58,7 +60,7 @@ export interface ProductPrice {
   id: Generated<number | null>;
   price: Generated<number>;
   product_id: number | null;
-  timestamp: Generated<string | null>;
+  timestamp: string;
 }
 
 export interface ProductStock {
@@ -66,7 +68,7 @@ export interface ProductStock {
   id: Generated<number | null>;
   product_id: number | null;
   quantity: number;
-  timestamp: Generated<string | null>;
+  timestamp: string;
 }
 
 export interface SalesDocument {
@@ -77,6 +79,7 @@ export interface SalesDocument {
 }
 
 export interface SalesDocumentItem {
+  created_at: Generated<string>;
   document_id: number;
   id: Generated<number | null>;
   price: Generated<number>;

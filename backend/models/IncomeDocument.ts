@@ -78,7 +78,10 @@ export class IncomeDocument {
   }
 
   getTotalAmount(): number {
-    return this.items?.reduce((sum, item) => sum + item.price * item.quantity, 0) || 0;
+    return (
+      this.items?.reduce((sum, item) => sum + item.price * item.quantity, 0) ||
+      0
+    );
   }
 
   getItemCount(): number {

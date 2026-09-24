@@ -5,93 +5,82 @@ import { ParseJSONResultsPlugin, sql } from "kysely";
 const posRouter = new Hono();
 
 posRouter.post("/", async (c) => {
-	const json = (await c.req.json()) as {
-		url: string;
-		method: string;
-		query: string;
-		body: any;
-	};
+  const json = (await c.req.json()) as {
+    url: string;
+    method: string;
+    query: string;
+    body: any;
+  };
 
-	switch (`${json.method}:${json.url}`) {
-		case "GET:/shop/hs/app/agent-and-partner/": {
-			const partners = await db
-				.selectFrom("partner")
-				.selectAll()
-				.execute();
+  switch (`${json.method}:${json.url}`) {
+    case "GET:/shop/hs/app/agent-and-partner/": {
+      const partners = await db.selectFrom("partner").selectAll().execute();
 
-			return c.json(
-				partners.map((p) => ({
-					...p,
-					partnerName: p.name,
-					agentName: p.name,
-					partnerId: p.id.toString(),
-				})),
-			);
-		}
-		case "GET:/shop/hs/app/product": {
-			return c.json([]);
-		}
-		case "GET:/shop/hs/app/comment/1": {
-			return c.text("");
-		}
-		case "GET:/shop/hs/app/sell-document/1": {
-			const currentDay = new Date().getDate().toString();
-			const { sum } = await db
-				.selectFrom("sales_document_item")
-				.leftJoin(
-					"sales_document",
-					"sales_document.id",
-					"sales_document_item.document_id",
-				)
-				.select(sql<number>`sum(quantity * price)`.as("sum"))
-				.where("sales_document.partner_id", "=", 1)
-				.where(
-					sql<any>`strftime('%d',sales_document.date) = ${currentDay}`,
-				)
-				.orderBy("sales_document.date", "desc")
-				.executeTakeFirstOrThrow();
+      return c.json(
+        partners.map((p) => ({
+          ...p,
+          partnerName: p.name,
+          agentName: p.name,
+          partnerId: p.id.toString(),
+        })),
+      );
+    }
+    case "GET:/shop/hs/app/product": {
+      return c.json([]);
+    }
+    case "GET:/shop/hs/app/comment/1": {
+      return c.text("");
+    }
+    case "GET:/shop/hs/app/sell-document/1": {
+      const currentDay = new Date().getDate().toString();
+      const { sum } = await db
+        .selectFrom("sales_document_item")
+        .leftJoin(
+          "sales_document",
+          "sales_document.id",
+          "sales_document_item.document_id",
+        )
+        .select(sql<number>`sum(quantity * price)`.as("sum"))
+        .where("sales_document.partner_id", "=", 1)
+        .where(sql<any>`strftime('%d',sales_document.date) = ${currentDay}`)
+        .orderBy("sales_document.date", "desc")
+        .executeTakeFirstOrThrow();
 
-			return c.text(sum?.toFixed(2) || "0");
-		}
-		case "GET:/shop/hs/api/search": {
-			const qArray = json.query
-				.slice(3)
-				.replace(/[*()]/gi, "")
-				.replace(/\b(OR|AND)\b/gi, "")
-				.replace(/\s+/g, " ")
-				.split(" ");
-			const words = new Set<string>();
-			qArray.forEach((word) => {
-				words.add(word);
-			});
-			const uniqueWords = [...words];
+      return c.text(sum?.toFixed(2) || "0");
+    }
+    case "GET:/shop/hs/api/search": {
+      const qArray = json.query
+        .slice(3)
+        .replace(/[*()]/gi, "")
+        .replace(/\b(OR|AND)\b/gi, "")
+        .replace(/\s+/g, " ")
+        .split(" ");
+      const words = new Set<string>();
+      qArray.forEach((word) => {
+        words.add(word);
+      });
+      const uniqueWords = [...words];
 
-			if (
-				uniqueWords.at(-1)?.trim() === uniqueWords.slice(0, -1).join("")
-			) {
-				uniqueWords.pop();
-			}
-			console.log(uniqueWords);
-			return c.json([]);
-		}
-		case "GET:/shop/hs/app/stats": {
-			const sales_documents = await db
-				.selectFrom("sales_document")
-				.leftJoin(
-					"sales_document_item",
-					"sales_document_item.document_id",
-					"sales_document.id",
-				)
-				.leftJoin(
-					"product",
-					"product.id",
-					"sales_document_item.product_id",
-				)
-				.leftJoin("partner", "partner.id", "sales_document.partner_id")
-				.select([
-					"partner.id as partnerId",
-					"partner.name as partnerName",
-					sql`coalesce(
+      if (uniqueWords.at(-1)?.trim() === uniqueWords.slice(0, -1).join("")) {
+        uniqueWords.pop();
+      }
+      console.log(uniqueWords);
+      return c.json([]);
+    }
+    case "GET:/shop/hs/app/stats": {
+      const sales_documents = await db
+        .selectFrom("sales_document")
+        .leftJoin(
+          "sales_document_item",
+          "sales_document_item.document_id",
+          "sales_document.id",
+        )
+        .leftJoin("product", "product.id", "sales_document_item.product_id")
+        .leftJoin("partner", "partner.id", "sales_document.partner_id")
+        .select([
+          "partner.id as partnerId",
+          "partner.name as partnerName",
+          sql`coalesce(
 						json_group_array(
 							json_object(
 								'searchCode', product.id,
@@ -105,103 +94,100 @@ posRouter.post("/", async (c) => {
 						) FILTER (WHERE product.id IS NOT NULL),
 						json('[]')
 					)`.as("products"),
-					"date",
-					sql`sum(sales_document_item.price * sales_document_item.quantity)`.as(
-						"sum",
-					),
-				])
-				.groupBy("sales_document.id")
-				.withPlugin(new ParseJSONResultsPlugin())
-				.execute();
+          "date",
+          sql`sum(sales_document_item.price * sales_document_item.quantity)`.as(
+            "sum",
+          ),
+        ])
+        .groupBy("sales_document.id")
+        .withPlugin(new ParseJSONResultsPlugin())
+        .execute();
 
-			const currentDate = new Date().toISOString().split("T")[0];
+      const currentDate = new Date().toISOString().split("T")[0];
 
-			return c.json(
-				sales_documents.map((d) => ({
-					products: d.products.map((el) => ({
-						...el,
-						place1: el?.places[0] || "",
-						place2: el?.places[1] || "",
-						place3: el?.places[2] || "",
-					})),
-					// products:[],
-					type: "sale",
-					day:
-						currentDate === d.date.split(" ")[0]
-							? "today"
-							: "yesterday",
-					partnerName: d.partnerName,
-					partnerId: d.partnerId,
-					sum: d.sum || 0,
-					comment: "meowe",
-				})),
-			);
-		}
-		case "POST:/shop/hs/pos/sell": {
-			const currentDate = new Date().toISOString().split("T")[0];
+      return c.json(
+        sales_documents.map((d) => ({
+          products: d.products.map((el) => ({
+            ...el,
+            place1: el?.places[0] || "",
+            place2: el?.places[1] || "",
+            place3: el?.places[2] || "",
+          })),
+          // products:[],
+          type: "sale",
+          day: currentDate === d.date.split(" ")[0] ? "today" : "yesterday",
+          partnerName: d.partnerName,
+          partnerId: d.partnerId,
+          sum: d.sum || 0,
+          comment: "meowe",
+        })),
+      );
+    }
+    case "POST:/shop/hs/pos/sell": {
+      const currentDate = new Date().toISOString().split("T")[0];
 
-			for (const product of json.body.products) {
-				if (product.quantity <= 0) {
-					return c.text("product quantity cant be 0 or less", 400);
-				}
-			}
+      for (const product of json.body.products) {
+        if (product.quantity <= 0) {
+          return c.text("product quantity cant be 0 or less", 400);
+        }
+      }
 
-			const document = await db
-				.selectFrom("sales_document")
-				.selectAll()
-				.where("partner_id", "=", json.body.partnerId)
-				.where(sql<any>`strftime('%Y-%m-%d',date) = ${currentDate}`)
-				.orderBy("date", "desc")
-				.executeTakeFirst();
+      const document = await db
+        .selectFrom("sales_document")
+        .selectAll()
+        .where("partner_id", "=", json.body.partnerId)
+        .where(sql<any>`strftime('%Y-%m-%d',date) = ${currentDate}`)
+        .orderBy("date", "desc")
+        .executeTakeFirst();
 
-			let documentId = document?.id;
+      let documentId = document?.id;
 
-			await db.transaction().execute(async (trx) => {
-				if (!documentId) {
-					const newDocument = await trx
-						.insertInto("sales_document")
-						.values({
-							partner_id: json.body.partnerId,
-							posted: 1,
-							date:sql`datetime('now')`
-						})
-						.returning("id")
-						.executeTakeFirstOrThrow();
-					documentId = newDocument.id;
-				}
-				await trx
-					.insertInto("sales_document_item")
-					.values(
-						json.body.products.map((p: any) => ({
-							product_id: Number(p.id),
-							document_id: documentId,
-							price: p.price,
-							quantity: p.quantity,
-						})),
-					)
-					.executeTakeFirstOrThrow();
+      await db.transaction().execute(async (trx) => {
+        if (!documentId) {
+          const newDocument = await trx
+            .insertInto("sales_document")
+            .values({
+              partner_id: json.body.partnerId,
+              posted: 1,
+              date: sql`datetime('now')`,
+            })
+            .returning("id")
+            .executeTakeFirstOrThrow();
+          documentId = newDocument.id;
+        }
+        await trx
+          .insertInto("sales_document_item")
+          .values(
+            json.body.products.map((p: any) => ({
+              product_id: Number(p.id),
+              document_id: documentId,
+              price: p.price,
+              quantity: p.quantity,
+            })),
+          )
+          .executeTakeFirstOrThrow();
 
-				await trx
-					.insertInto("product_stock")
-					.values(
-						json.body.products.map((p) => ({
-							product_id: Number(p.id),
-							document_id: documentId,
-							quantity: -p.quantity,
-							timestamp: new Date().toISOString(),
-						})),
-					)
-					.execute();
-			});
+        await trx
+          .insertInto("product_stock")
+          .values(
+            json.body.products.map((p) => ({
+              product_id: Number(p.id),
+              document_id: documentId,
+              quantity: -p.quantity,
+              timestamp: new Date().toISOString(),
+            })),
+          )
+          .execute();
+      });
 
-			return c.text("success");
-		}
-		default: {
-			break;
-		}
-	}
-	console.log(json);
-	return c.text("NOT IMPLEMENTED", 500);
+      return c.text("success");
+    }
+    default: {
+      break;
+    }
+  }
+  console.log(json);
+  return c.text("NOT IMPLEMENTED", 500);
 });
 
 export default posRouter;

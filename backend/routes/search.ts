@@ -4,6 +4,8 @@ import { db } from "../db/db";
 import { sql } from "kysely";
 // import { db } from "./db";
 
+let FILLED = false;
+
 type SearchRecord = {
   id: string;
   name: string;
@@ -14,6 +16,7 @@ type SearchRecord = {
   barcodes: string[];
   analogs: string[];
   oeNumbers: string[];
+  photoUrl: string;
 };
 
 async function getProducts() {
@@ -28,16 +31,22 @@ async function getProducts() {
       "brand",
       "units",
       "places",
+      "photos",
     ])
     .execute();
-  return products.map((p) => ({
+
+  const productsForSearch = products.map((p) => ({
     ...p,
     id: p.id.toString(),
-    places: JSON.parse(p.places),
-    analogs: [],
-    barcodes: [],
-    oeNumbers: [],
-  })) as SearchRecord;
+    places: JSON.parse(p.places) as string[],
+    analogs: [] as string[],
+    barcodes: [] as string[],
+    oeNumbers: [] as string[],
+    photoUrl:
+      Buffer.from(JSON.parse(p.photos || "[]")[0] || "").toBase64() || "",
+  }));
+
+  return productsForSearch;
 }
 
 async function getAvailability(ids: string[]) {
@@ -64,13 +73,11 @@ async function getAvailability(ids: string[]) {
     .groupBy("product_stock.product_id")
     .execute();
 
-  return stocks.map((el) => ({ ...el, id: el.id?.toString() })) as Promise<
-    {
-      id: string;
-      quantity: number;
-      price: number;
-    }[]
-  >;
+  return stocks.map((el) => ({ ...el, id: el.id?.toString() })) as {
+    id: string;
+    quantity: number;
+    price: number;
+  }[];
 }
 
 let miniSearch = new MiniSearch<SearchRecord>({
@@ -96,6 +103,7 @@ let miniSearch = new MiniSearch<SearchRecord>({
     "oeNumbers",
     "units",
     "places",
+    "photoUrl",
   ], // fields to return with search results
   processTerm: (term: string, _fieldName: any) => {
     term = term.toLowerCase();
@@ -126,7 +134,7 @@ let miniSearch = new MiniSearch<SearchRecord>({
 async function getAnalogs(
   data: { id: string; article: string; supplier: string }[],
 ) {
-  return [];
+  return [] as any[];
   // const articles = await db
   //   .selectFrom("article")
   //   .leftJoin("supplier", "article.supplier_id", "supplier.id")
@@ -196,15 +204,17 @@ async function getAnalogs(
   // );
 }
 
-(async () => {
+async function fillSearchDb() {
   const documents = await getProducts().catch((err) => {
     console.error(err);
     return [];
   });
+
   if (!documents || !documents.length) {
     console.error("no documents");
     return;
   }
+
   console.log("got", documents.length);
 
   const analogs = await getAnalogs(
@@ -222,16 +232,16 @@ async function getAnalogs(
       })),
   );
 
-  const docs = await Promise.all(
-    documents.map(async (el) => ({
-      ...el,
-      analogs: analogs.find((a) => a.id === el.id)?.articles || [],
-      oeNumbers: analogs.find((a) => a.id === el.id)?.oeNumbers || [],
-      article_search: el.article.replace(/[^\p{L}\p{N}]/gu, ""),
-    })),
-  );
+  const docs = documents.map((el) => ({
+    ...el,
+    analogs: analogs.find((a) => a.id === el.id)?.articles || [],
+    oeNumbers: analogs.find((a) => a.id === el.id)?.oeNumbers || [],
+    article_search: el.article.replace(/[^\p{L}\p{N}]/gu, ""),
+  }));
+
   miniSearch.addAll(docs);
-})();
+  FILLED = true;
+}
 
 const searchRoutes = new Hono();
 
@@ -240,6 +250,10 @@ searchRoutes.get("/", async (c) => {
     const query = c.req.query();
     if (!query?.q) {
       return c.json({ items: [] }, 400);
+    }
+
+    if (!FILLED) {
+      await fillSearchDb();
     }
 
     let q: string = query.q.toString();
@@ -260,7 +274,6 @@ searchRoutes.get("/", async (c) => {
       results.map((r) => ({
         ...r,
         ...a.find((item) => item.id === r.id),
-        photoUrl: "",
         foundBy: Object.entries(
           Object.entries(r.match).reduce((p, c) => {
             const n = JSON.parse(JSON.stringify(p));
@@ -270,7 +283,6 @@ searchRoutes.get("/", async (c) => {
               } else {
                 n[v] = c[0];
               }
-              console.log(n);
             });
             return n;
           }, {}),

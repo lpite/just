@@ -7,10 +7,7 @@ const productPriceRouter = new Hono();
 // GET all product prices
 productPriceRouter.get("/", async (c) => {
   try {
-    const prices = await db
-      .selectFrom("product_price")
-      .selectAll()
-      .execute();
+    const prices = await db.selectFrom("product_price").selectAll().execute();
     return c.json({ data: prices, count: prices.length });
   } catch (error) {
     logger.error("Failed to fetch product prices", error);
@@ -67,10 +64,7 @@ productPriceRouter.post("/", async (c) => {
     const { product_id, price } = body;
 
     if (!product_id || price === undefined) {
-      return c.json(
-        { error: "Product ID and price are required" },
-        400
-      );
+      return c.json({ error: "Product ID and price are required" }, 400);
     }
 
     const result = await db
@@ -87,7 +81,7 @@ productPriceRouter.post("/", async (c) => {
           timestamp: new Date().toISOString(),
         },
       },
-      201
+      201,
     );
   } catch (error) {
     logger.error("Failed to create price entry", error);

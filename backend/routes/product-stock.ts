@@ -20,9 +20,7 @@ productStockRouter.get("/", async (c) => {
       .selectFrom("product_stock")
       .select("product_id")
       .select(sql<number>`SUM(quantity)`.as("quantity"))
-      .where(
-        sql`DATE(timestamp) <= ${dateParam}`
-      )
+      .where(sql`DATE(timestamp) <= ${dateParam}`)
       .groupBy("product_id")
       .execute();
 
@@ -48,9 +46,7 @@ productStockRouter.get("/product/:product_id", async (c) => {
       .select("product_id")
       .select(sql<number>`SUM(quantity)`.as("quantity"))
       .where("product_id", "=", productId)
-      .where(
-        sql`DATE(timestamp) <= ${dateParam}`
-      )
+      .where(sql`DATE(timestamp) <= ${dateParam}`)
       .groupBy("product_id")
       .executeTakeFirst();
 
@@ -74,10 +70,7 @@ productStockRouter.get("/product/:product_id", async (c) => {
 // GET all stock history entries (raw records)
 productStockRouter.get("/history/all", async (c) => {
   try {
-    const stocks = await db
-      .selectFrom("product_stock")
-      .selectAll()
-      .execute();
+    const stocks = await db.selectFrom("product_stock").selectAll().execute();
     return c.json({ data: stocks, count: stocks.length });
   } catch (error) {
     logger.error("Failed to fetch product stock history", error);
@@ -134,10 +127,7 @@ productStockRouter.post("/", async (c) => {
     const { product_id, quantity } = body;
 
     if (!product_id || quantity === undefined) {
-      return c.json(
-        { error: "Product ID and quantity are required" },
-        400
-      );
+      return c.json({ error: "Product ID and quantity are required" }, 400);
     }
 
     const result = await db
@@ -154,7 +144,7 @@ productStockRouter.post("/", async (c) => {
           timestamp: new Date().toISOString(),
         },
       },
-      201
+      201,
     );
   } catch (error) {
     logger.error("Failed to create stock entry", error);

@@ -52,10 +52,7 @@ productsRouter.post("/", async (c) => {
       .returning("id")
       .executeTakeFirstOrThrow();
 
-    return c.json(
-      { data: { id: Number(result.id), name:name } },
-      201
-    );
+    return c.json({ data: { id: Number(result.id), name: name } }, 201);
   } catch (error) {
     logger.error("Failed to create product", error);
     return c.json({ error: "Failed to create product" }, 500);

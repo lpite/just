@@ -121,14 +121,14 @@ const insertAll = db.transaction(() => {
 
   for (const p of products) {
     const places = JSON.stringify(parsePlaces(p));
-    let productResult:any = {lastInsertRowid:null};
+    let productResult: any = { lastInsertRowid: null };
     try {
-        const id = Number(p.searchCode);
-        if(!id){
-          console.log(p)
-          throw new Error("shity id")
-        }
-        productResult = insertProduct.run({
+      const id = Number(p.searchCode);
+      if (!id) {
+        console.log(p);
+        throw new Error("shity id");
+      }
+      productResult = insertProduct.run({
         name: p.name || "",
         nameAlt: "",
         oem: p.vendorCode || "",
@@ -144,7 +144,7 @@ const insertAll = db.transaction(() => {
     }
 
     const productId = Number(productResult.lastInsertRowid);
-    if(!productId){
+    if (!productId) {
       continue;
     }
     if (p.quantity && p.quantity > 0 && p.quantity !== 0) {
@@ -188,7 +188,9 @@ for (const photo of productPhotos) {
   photosBySearchCode.set(key, list);
 }
 
-const updateBrand = db.prepare(`UPDATE product SET brand = @brand WHERE id = @id`);
+const updateBrand = db.prepare(
+  `UPDATE product SET brand = @brand WHERE id = @id`,
+);
 const updatePhotos = db.prepare(
   `UPDATE product SET photos = @photos WHERE id = @id`,
 );
