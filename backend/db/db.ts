@@ -40,6 +40,7 @@ export async function initSchema() {
     .addColumn("date", "datetime")
     .addColumn("partner_id", "integer", (c) => c.references("partner.id"))
     .addColumn("posted", "boolean", (c) => c.defaultTo(false))
+    .addColumn("notes", "text", (c) => c.notNull().defaultTo(""))
     .execute();
 
   await db.schema

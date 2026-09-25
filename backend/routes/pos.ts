@@ -81,19 +81,19 @@ posRouter.post("/", async (c) => {
           "partner.id as partnerId",
           "partner.name as partnerName",
           sql`coalesce(
-						json_group_array(
-							json_object(
-								'searchCode', product.id,
-								'name', product.name,
-								'time', sales_document_item.created_at,
-								'price', sales_document_item.price,
-								'quantity', sales_document_item.quantity,
-								'sum', sales_document_item.price * sales_document_item.quantity,
-								'places', product.places
-							)
-						) FILTER (WHERE product.id IS NOT NULL),
-						json('[]')
-					)`.as("products"),
+            json_group_array(
+              json_object(
+                'searchCode', product.id,
+                'name', product.name,
+                'time', sales_document_item.created_at,
+                'price', sales_document_item.price,
+                'quantity', sales_document_item.quantity,
+                'sum', sales_document_item.price * sales_document_item.quantity,
+                'places', product.places
+              )
+            ) FILTER (WHERE product.id IS NOT NULL),
+            json('[]')
+          )`.as("products"),
           "date",
           sql`sum(sales_document_item.price * sales_document_item.quantity)`.as(
             "sum",
@@ -103,10 +103,60 @@ posRouter.post("/", async (c) => {
         .withPlugin(new ParseJSONResultsPlugin())
         .execute();
 
+      const income_documents = await db
+        .selectFrom("income_document")
+        .leftJoin(
+          "income_document_item",
+          "income_document_item.document_id",
+          "income_document.id",
+        )
+        .leftJoin("product", "product.id", "income_document_item.product_id")
+        .leftJoin("partner", "partner.id", "income_document.partner_id")
+        .select([
+          "partner.id as partnerId",
+          "partner.name as partnerName",
+          sql`coalesce(
+            json_group_array(
+              json_object(
+                'searchCode', product.id,
+                'name', product.name,
+                'time', datetime('now'),
+                'price', income_document_item.price,
+                'quantity', income_document_item.quantity,
+                'sum', income_document_item.price * income_document_item.quantity,
+                'places', product.places
+              )
+            ) FILTER (WHERE product.id IS NOT NULL),
+            json('[]')
+          )`.as("products"),
+          "date",
+          sql`sum(income_document_item.price * income_document_item.quantity)`.as(
+            "sum",
+          ),
+        ])
+        .groupBy("income_document.id")
+        .withPlugin(new ParseJSONResultsPlugin())
+        .execute();
+
       const currentDate = new Date().toISOString().split("T")[0];
 
-      return c.json(
-        sales_documents.map((d) => ({
+      return c.json([
+        ...income_documents.map((d) => ({
+          products: d.products.map((el) => ({
+            ...el,
+            place1: el?.places[0] || "",
+            place2: el?.places[1] || "",
+            place3: el?.places[2] || "",
+          })),
+          // products:[],
+          type: "income",
+          day: currentDate === d.date.split(" ")[0] ? "today" : "yesterday",
+          partnerName: d.partnerName,
+          partnerId: d.partnerId,
+          sum: d.sum || 0,
+          comment: "meowe",
+        })),
+        ...sales_documents.map((d) => ({
           products: d.products.map((el) => ({
             ...el,
             place1: el?.places[0] || "",
@@ -121,7 +171,7 @@ posRouter.post("/", async (c) => {
           sum: d.sum || 0,
           comment: "meowe",
         })),
-      );
+      ]);
     }
     case "POST:/shop/hs/pos/sell": {
       const currentDate = new Date().toISOString().split("T")[0];
