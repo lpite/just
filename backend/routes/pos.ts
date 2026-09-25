@@ -232,6 +232,65 @@ posRouter.post("/", async (c) => {
 
       return c.text("success");
     }
+    case "POST:/shop/hs/app/income-document/": {
+      const currentDate = new Date().toISOString().split("T")[0];
+
+      for (const product of json.body.products) {
+        if (product.quantity <= 0) {
+          return c.text("product quantity cant be 0 or less", 400);
+        }
+      }
+
+      const document = await db
+        .selectFrom("income_document")
+        .selectAll()
+        .where("partner_id", "=", json.body.partnerId)
+        .where(sql<any>`strftime('%Y-%m-%d',date) = ${currentDate}`)
+        .orderBy("date", "desc")
+        .executeTakeFirst();
+
+      let documentId = document?.id;
+
+      await db.transaction().execute(async (trx) => {
+        if (!documentId) {
+          const newDocument = await trx
+            .insertInto("income_document")
+            .values({
+              partner_id: json.body.partnerId,
+              posted: 1,
+              date: sql`datetime('now')`,
+            })
+            .returning("id")
+            .executeTakeFirstOrThrow();
+          documentId = newDocument.id;
+        }
+        await trx
+          .insertInto("income_document_item")
+          .values(
+            json.body.products.map((p: any) => ({
+              product_id: Number(p.id),
+              document_id: documentId,
+              price: p.price,
+              quantity: p.quantity,
+            })),
+          )
+          .executeTakeFirstOrThrow();
+
+        await trx
+          .insertInto("product_stock")
+          .values(
+            json.body.products.map((p) => ({
+              product_id: Number(p.id),
+              document_id: documentId,
+              quantity: p.quantity,
+              timestamp: new Date().toISOString(),
+            })),
+          )
+          .execute();
+      });
+
+      return c.text("Успешно");
+    }
     default: {
       break;
     }
