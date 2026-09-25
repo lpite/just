@@ -291,6 +291,22 @@ posRouter.post("/", async (c) => {
 
       return c.text("Успешно");
     }
+    case "GET:/shop/hs/app/income-document": {
+      const currentDay = new Date().getDate().toString();
+      const { sum } = await db
+        .selectFrom("income_document_item")
+        .leftJoin(
+          "income_document",
+          "income_document.id",
+          "income_document_item.document_id",
+        )
+        .select(sql<number>`sum(quantity * price)`.as("sum"))
+        .where("income_document.partner_id", "=", 1)
+        .where(sql<any>`strftime('%d',income_document.date) = ${currentDay}`)
+        .orderBy("income_document.date", "desc")
+        .executeTakeFirstOrThrow();
+      return c.text(sum.toFixed(2));
+    }
     default: {
       break;
     }
