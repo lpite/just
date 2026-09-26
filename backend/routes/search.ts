@@ -54,23 +54,24 @@ async function getAvailability(ids: string[]) {
     return [];
   }
   const stocks = await db
-    .selectFrom("product_stock")
+    .selectFrom("product")
+    .leftJoin("product_stock", "product_stock.product_id", "product.id")
     .leftJoin(
-      "product_price",
-      "product_price.product_id",
-      "product_stock.product_id",
+      "product_price_latest",
+      "product_price_latest.product_id",
+      "product.id",
     )
     .select([
-      "product_stock.product_id as id",
-      "product_price.price",
-      sql<number>`SUM(quantity)`.as("quantity"),
+      "product.id as id",
+      "product_price_latest.price",
+      sql<number>`SUM(product_stock.quantity)`.as("quantity"),
     ])
     .where(
-      "product_stock.product_id",
+      "product.id",
       "in",
       ids.map((id) => Number(id)),
     )
-    .groupBy("product_stock.product_id")
+    .groupBy("product.id")
     .execute();
 
   return stocks.map((el) => ({ ...el, id: el.id?.toString() })) as {

@@ -5,23 +5,22 @@
 
 import type { ColumnType } from "kysely";
 
-export type Generated<T> =
-  T extends ColumnType<infer S, infer I, infer U>
-    ? ColumnType<S, I | undefined, U>
-    : ColumnType<T, T | undefined, T>;
+export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
+  ? ColumnType<S, I | undefined, U>
+  : ColumnType<T, T | undefined, T>;
 
 export interface IncomeDocument {
   date: string | null;
-  id: Generated<number>;
+  id: Generated<number | null>;
   partner_id: number | null;
   posted: Generated<number | null>;
 }
 
 export interface IncomeDocumentItem {
-  document_id: number;
+  document_id: number | null;
   id: Generated<number | null>;
   price: Generated<number>;
-  product_id: number;
+  product_id: number | null;
   quantity: Generated<number>;
 }
 
@@ -63,6 +62,11 @@ export interface ProductPrice {
   timestamp: string;
 }
 
+export interface ProductPriceLatest {
+  price: number | null;
+  product_id: number | null;
+}
+
 export interface ProductStock {
   document_id: number;
   id: Generated<number | null>;
@@ -95,6 +99,7 @@ export interface DB {
   price_setting_document_item: PriceSettingDocumentItem;
   product: Product;
   product_price: ProductPrice;
+  product_price_latest: ProductPriceLatest;
   product_stock: ProductStock;
   sales_document: SalesDocument;
   sales_document_item: SalesDocumentItem;

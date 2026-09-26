@@ -120,4 +120,22 @@ export async function initSchema() {
     .addColumn("product_id", "integer", (c) => c.references("product.id"))
     .addColumn("price", "real", (c) => c.notNull().defaultTo(0))
     .execute();
+
+  await db.schema
+    .createView("product_price_latest")
+    .ifNotExists()
+    .as(
+      db
+        .selectFrom("product_price as pp")
+        .select(["pp.product_id", "pp.price"])
+        .where("pp.timestamp", "=", ({ eb }) =>
+          eb
+            .selectFrom("product_price as p2")
+            .select(({ eb: eb2 }) =>
+              eb2.fn.max("p2.timestamp").as("max_timestamp"),
+            )
+            .whereRef("p2.product_id", "=", "pp.product_id"),
+        ),
+    )
+    .execute();
 }
