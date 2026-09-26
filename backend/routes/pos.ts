@@ -100,6 +100,9 @@ posRouter.post("/", async (c) => {
           ),
         ])
         .groupBy("sales_document.id")
+        .where(
+          sql<any>`sales_document.date >= datetime('now', 'start of day', '-1 day')`,
+        )
         .withPlugin(new ParseJSONResultsPlugin())
         .execute();
 
@@ -135,6 +138,9 @@ posRouter.post("/", async (c) => {
           ),
         ])
         .groupBy("income_document.id")
+        .where(
+          sql<any>`income_document.date >= datetime('now', 'start of day', '-1 day')`,
+        )
         .withPlugin(new ParseJSONResultsPlugin())
         .execute();
 
