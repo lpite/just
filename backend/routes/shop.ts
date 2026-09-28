@@ -86,4 +86,24 @@ shopRouter.get("/api/products/availability", async (c) => {
   );
 });
 
+shopRouter.get("/app/product", async (c) => {
+  const products = await db
+    .selectFrom("product")
+    .leftJoin("product_stock", "product_stock.product_id", "product.id")
+    .leftJoin(
+      "product_price_latest",
+      "product_price_latest.product_id",
+      "product.id",
+    )
+    .select([
+      "product.id as searchCode",
+      "product_price_latest.price",
+      sql<number>`SUM(product_stock.quantity)`.as("quantity"),
+    ])
+    .groupBy("product.id")
+    .execute();
+
+  return c.json(products);
+});
+
 export default shopRouter;
