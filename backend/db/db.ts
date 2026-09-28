@@ -85,7 +85,7 @@ export async function initSchema() {
     .addColumn("id", "integer", (c) => c.primaryKey().notNull().autoIncrement())
     .addColumn("date", "datetime")
     .addColumn("partner_id", "integer", (c) => c.references("partner.id"))
-    .addColumn("posted", "boolean", (c) => c.defaultTo(false))
+    .addColumn("posted", "boolean", (c) => c.notNull().defaultTo(false))
     .execute();
 
   await db.schema

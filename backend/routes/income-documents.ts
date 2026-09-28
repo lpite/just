@@ -45,7 +45,6 @@ incomeDocumentsRouter.get("/:id", async (c) => {
   }
 });
 
-// POST create income document
 incomeDocumentsRouter.post("/", async (c) => {
   try {
     const body = await c.req.json();
@@ -91,7 +90,6 @@ incomeDocumentsRouter.post("/", async (c) => {
   }
 });
 
-// POST endpoint to post/finalize income document (creates stock records)
 incomeDocumentsRouter.post("/:id/post", async (c) => {
   try {
     const id = parseInt(c.req.param("id"));
@@ -100,42 +98,48 @@ incomeDocumentsRouter.post("/:id/post", async (c) => {
       .selectFrom("income_document")
       .selectAll()
       .where("id", "=", id)
-      .executeTakeFirst();
+      .executeTakeFirstOrThrow();
 
-    if (!document) {
-      return c.json({ error: "Income document not found" }, 404);
+    if (document.posted) {
+      return c.json({
+        data: { id, posted: true },
+        message: "Income document posted successfully",
+      });
     }
 
-    // If already posted, skip creation and just return success
-    if (!document.posted) {
-      // Get document items
-      const items = await db
-        .selectFrom("income_document_item")
-        .selectAll()
-        .where("document_id", "=", id)
+    if (!document.date) {
+      throw new Error("Cant post document without date");
+    }
+
+    const items = await db
+      .selectFrom("income_document_item")
+      .selectAll()
+      .where("document_id", "=", id)
+      .execute();
+
+    if (!items.length) {
+      throw new Error("Cant post document without items");
+    }
+
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .insertInto("product_stock")
+        .values(
+          items.map((item) => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            timestamp: document.date as string,
+            document_id: document.id,
+          })),
+        )
         .execute();
 
-      // Create product stock records with positive quantity for income
-      if (items.length > 0) {
-        await db
-          .insertInto("product_stock")
-          .values(
-            items.map((item) => ({
-              product_id: item.product_id,
-              quantity: item.quantity, // Positive for income
-              timestamp: new Date().toISOString(),
-            })),
-          )
-          .execute();
-      }
-    }
-
-    // Mark document as posted
-    await db
-      .updateTable("income_document")
-      .set({ posted: true })
-      .where("id", "=", id)
-      .execute();
+      await trx
+        .updateTable("income_document")
+        .set({ posted: 1 })
+        .where("id", "=", id)
+        .executeTakeFirst();
+    });
 
     return c.json({
       data: { id, posted: true },
@@ -150,50 +154,29 @@ incomeDocumentsRouter.post("/:id/post", async (c) => {
 incomeDocumentsRouter.post("/:id/unpost", async (c) => {
   try {
     const id = parseInt(c.req.param("id"));
-    throw new Error("not implemented");
     const document = await db
       .selectFrom("income_document")
       .selectAll()
       .where("id", "=", id)
-      .executeTakeFirst();
+      .executeTakeFirstOrThrow();
 
-    if (!document) {
-      return c.json({ error: "Income document not found" }, 404);
+    if (!document.posted) {
+      return c.json({
+        data: { id, posted: false },
+        message: "Income document unposted successfully",
+      });
     }
 
     await db.transaction().execute(async (trx) => {
-      x;
-      if (document.posted) {
-        await trx
-          .deleteFrom("product_stock")
-          .where("document_id", "=", document.id)
-          .where("product_stock.quantity", ">", 0)
-          .execute();
-      }
-
-      const items = await trx
-        .selectFrom("income_document_item")
-        .selectAll()
-        .where("document_id", "=", id)
+      await trx
+        .deleteFrom("product_stock")
+        .where("document_id", "=", document.id)
+        .where("product_stock.quantity", ">", 0)
         .execute();
-
-      if (items.length > 0) {
-        await trx
-          .insertInto("product_stock")
-          .values(
-            items.map((item) => ({
-              product_id: item.product_id,
-              quantity: item.quantity,
-              timestamp: new Date().toISOString(),
-              document_id: document.id,
-            })),
-          )
-          .execute();
-      }
 
       await trx
         .updateTable("income_document")
-        .set({ posted: 1 })
+        .set({ posted: 0 })
         .where("id", "=", id)
         .execute();
     });
@@ -208,18 +191,74 @@ incomeDocumentsRouter.post("/:id/unpost", async (c) => {
   }
 });
 
-// PUT update income document
 incomeDocumentsRouter.put("/:id", async (c) => {
   try {
     const id = parseInt(c.req.param("id"));
     const body = await c.req.json();
-    const { date, partner_id } = body;
+    const { date, partner_id, items } = body;
 
-    await db
-      .updateTable("income_document")
-      .set({ date, partner_id })
+    const document = await db
+      .selectFrom("income_document")
+      .select(["posted", "date"])
       .where("id", "=", id)
-      .executeTakeFirst();
+      .executeTakeFirstOrThrow();
+
+    if (document.posted && !items.length) {
+      throw new Error("Cant save posted document without items");
+    }
+
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable("income_document")
+        .set({ date, partner_id })
+        .where("id", "=", id)
+        .executeTakeFirst();
+
+      if (document.posted) {
+        await trx
+          .deleteFrom("product_stock")
+          .where("document_id", "=", id)
+          .where("quantity", ">", 0)
+          .executeTakeFirst();
+      }
+
+      await trx
+        .deleteFrom("income_document_item")
+        .where("document_id", "=", id)
+        .executeTakeFirst();
+
+      if (items.length) {
+        await trx
+          .insertInto("income_document_item")
+          .values(
+            items.map(
+              (item: { product_id: any; quantity: any; price: any }) => ({
+                document_id: id,
+                product_id: item.product_id,
+                quantity: item.quantity,
+                price: item.price,
+              }),
+            ),
+          )
+          .executeTakeFirst();
+      }
+
+      if (document.posted) {
+        await trx
+          .insertInto("product_stock")
+          .values(
+            items.map(
+              (item: { product_id: any; quantity: any; price: any }) => ({
+                document_id: id,
+                product_id: item.product_id,
+                quantity: item.quantity,
+                timestamp: document.date,
+              }),
+            ),
+          )
+          .executeTakeFirst();
+      }
+    });
 
     return c.json({ data: { id, date, partner_id } });
   } catch (error) {

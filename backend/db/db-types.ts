@@ -5,15 +5,16 @@
 
 import type { ColumnType } from "kysely";
 
-export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
-  ? ColumnType<S, I | undefined, U>
-  : ColumnType<T, T | undefined, T>;
+export type Generated<T> =
+  T extends ColumnType<infer S, infer I, infer U>
+    ? ColumnType<S, I | undefined, U>
+    : ColumnType<T, T | undefined, T>;
 
 export interface IncomeDocument {
   date: string | null;
-  id: Generated<number | null>;
+  id: Generated<number>;
   partner_id: number | null;
-  posted: Generated<number | null>;
+  posted: Generated<number>;
 }
 
 export interface IncomeDocumentItem {
