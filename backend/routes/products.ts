@@ -40,7 +40,7 @@ productsRouter.get("/:id", async (c) => {
 productsRouter.post("/", async (c) => {
   try {
     const body = await c.req.json();
-    const { name } = body;
+    const { name, article, oem, brand } = body;
 
     if (!name) {
       return c.json({ error: "Name is required" }, 400);
@@ -48,7 +48,7 @@ productsRouter.post("/", async (c) => {
 
     const result = await db
       .insertInto("product")
-      .values({ name })
+      .values({ name, article, oem, brand })
       .returning("id")
       .executeTakeFirstOrThrow();
 
@@ -64,7 +64,7 @@ productsRouter.put("/:id", async (c) => {
   try {
     const id = parseInt(c.req.param("id"));
     const body = await c.req.json();
-    const { name } = body;
+    const { name, article, oem, brand } = body;
 
     if (!name) {
       return c.json({ error: "Name is required" }, 400);
@@ -72,7 +72,7 @@ productsRouter.put("/:id", async (c) => {
 
     await db
       .updateTable("product")
-      .set({ name })
+      .set({ name, article, oem, brand })
       .where("id", "=", id)
       .executeTakeFirst();
 
