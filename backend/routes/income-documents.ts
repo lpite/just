@@ -41,8 +41,8 @@ incomeDocumentsRouter.get("/:id", async (c) => {
         "income_document_item.id",
         "income_document_item.quantity",
         "income_document_item.price",
+        "income_document_item.product_id",
         jsonBuildObject({
-          id: eb.ref("product.id"),
           article: eb.ref("product.article"),
           name: eb.ref("product.name"),
         }).as("product"),
