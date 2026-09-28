@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { db } from "../db/db";
 import { logger } from "../lib/logger";
+import { jsonBuildObject } from "kysely/helpers/sqlite";
+import { ParseJSONResultsPlugin } from "kysely";
 
 const incomeDocumentsRouter = new Hono();
 
@@ -34,8 +36,19 @@ incomeDocumentsRouter.get("/:id", async (c) => {
 
     const items = await db
       .selectFrom("income_document_item")
-      .selectAll()
+      .leftJoin("product", "product.id", "income_document_item.product_id")
+      .select((eb) => [
+        "income_document_item.id",
+        "income_document_item.quantity",
+        "income_document_item.price",
+        jsonBuildObject({
+          id: eb.ref("product.id"),
+          article: eb.ref("product.article"),
+          name: eb.ref("product.name"),
+        }).as("product"),
+      ])
       .where("document_id", "=", id)
+      .withPlugin(new ParseJSONResultsPlugin())
       .execute();
 
     return c.json({ data: { ...document, items } });
