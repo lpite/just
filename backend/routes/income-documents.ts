@@ -63,35 +63,33 @@ incomeDocumentsRouter.post("/", async (c) => {
     const body = await c.req.json();
     const { date, partner_id, items } = body;
 
-    if (!partner_id) {
-      return c.json({ error: "Partner ID is required" }, 400);
-    }
+    const documentId = await db.transaction().execute(async (trx) => {
+      const result = await trx
+        .insertInto("income_document")
+        .values({
+          date: date || new Date().toISOString(),
+          partner_id: partner_id || null,
+          posted: 0,
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow();
 
-    const result = await db
-      .insertInto("income_document")
-      .values({
-        date: date || new Date().toISOString(),
-        partner_id,
-        posted: 0,
-      })
-      .returning("id")
-      .executeTakeFirstOrThrow();
+      if (items && items.length > 0) {
+        await trx
+          .insertInto("income_document_item")
+          .values(
+            items.map((item: any) => ({
+              document_id: result.id,
+              product_id: item.product_id,
+              price: item.price,
+              quantity: item.quantity,
+            })),
+          )
+          .execute();
+      }
 
-    const documentId = result.id;
-
-    if (items && items.length > 0) {
-      await db
-        .insertInto("income_document_item")
-        .values(
-          items.map((item: any) => ({
-            document_id: documentId,
-            product_id: item.product_id,
-            price: item.price,
-            quantity: item.quantity,
-          })),
-        )
-        .execute();
-    }
+      return result.id;
+    });
 
     return c.json(
       { data: { id: documentId, date, partner_id, posted: false, items } },

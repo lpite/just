@@ -1,0 +1,88 @@
+/**
+ * API Connectivity Test
+ * 
+ * Quick sanity check that backend is responding and data is accessible.
+ */
+
+import {
+  listProducts,
+  getProduct,
+  searchProducts,
+} from "../services/productService";
+import {
+  listSuppliers,
+  listClients,
+} from "../services/partnerService";
+
+/**
+ * Test that we can connect to the API
+ */
+export async function testAPIConnectivity(): Promise<{
+  success: boolean;
+  message: string;
+  details?: any;
+}> {
+  try {
+    console.log("Testing API connectivity...");
+
+    // Test 1: List products
+    console.log("  1. Testing product list...");
+    const productsRes = await listProducts(1, 1);
+    if (!productsRes.data || productsRes.data.length === 0) {
+      throw new Error("No products returned");
+    }
+    console.log(`     ✓ Got ${productsRes.totalItems} products`);
+
+    // Test 2: Get single product
+    const firstProduct = productsRes.data[0];
+    console.log(`  2. Testing product detail (${firstProduct.id})...`);
+    const product = await getProduct(firstProduct.id);
+    if (!product.id) {
+      throw new Error("Failed to get product detail");
+    }
+    console.log("     ✓ Product detail loaded");
+
+    // Test 3: List suppliers
+    console.log("  3. Testing supplier list...");
+    const suppliersRes = await listSuppliers(1, 1);
+    console.log(`     ✓ Got ${suppliersRes.totalItems} suppliers`);
+
+    // Test 4: List clients
+    console.log("  4. Testing client list...");
+    const clientsRes = await listClients(1, 1);
+    console.log(`     ✓ Got ${clientsRes.totalItems} clients`);
+
+    // Test 5: Search products
+    console.log("  5. Testing product search...");
+    const searchRes = await searchProducts("test", 10);
+    console.log(`     ✓ Search returned ${searchRes.count} results`);
+
+    console.log("\n✓ All connectivity tests passed!");
+
+    return {
+      success: true,
+      message: "API connectivity successful",
+      details: {
+        productsCount: productsRes.totalItems,
+        suppliersCount: suppliersRes.totalItems,
+        clientsCount: clientsRes.totalItems,
+      },
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("\n✗ API connectivity test failed:", message);
+    return {
+      success: false,
+      message: `API connectivity test failed: ${message}`,
+    };
+  }
+}
+
+// Run tests if this file is executed directly
+if (require.main === module) {
+  testAPIConnectivity().then((result) => {
+    console.log("\n=== Test Result ===");
+    console.log(JSON.stringify(result, null, 2));
+    process.exit(result.success ? 0 : 1);
+  });
+}

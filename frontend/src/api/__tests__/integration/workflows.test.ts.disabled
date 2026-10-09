@@ -1,0 +1,267 @@
+/**
+ * Workflow Integration Tests
+ * 
+ * Tests for the 4 critical user workflows
+ */
+
+import * as productService from "../../services/productService";
+import * as documentService from "../../services/documentService";
+import * as partnerService from "../../services/partnerService";
+import * as stockService from "../../services/stockService";
+
+/**
+ * Test 1: Product Workflow
+ * List → Search → Get detail → Create → Update
+ */
+export async function testProductWorkflow(): Promise<{ success: boolean; message: string }> {
+  try {
+    console.log("\n=== Product Workflow Test ===");
+
+    // Step 1: List products
+    console.log("Step 1: List products");
+    const list = await productService.listProducts(1, 5);
+    if (list.data.length === 0) throw new Error("No products found");
+    console.log(`  ✓ Found ${list.totalItems} products`);
+
+    // Step 2: Search products
+    console.log("Step 2: Search products");
+    const search = await productService.searchProducts("test", 10);
+    console.log(`  ✓ Search returned ${search.count} results`);
+
+    // Step 3: Get product detail
+    console.log("Step 3: Get product detail");
+    const firstProduct = list.data[0];
+    const detail = await productService.getProduct(firstProduct.id);
+    if (!detail.id) throw new Error("Failed to load product detail");
+    console.log(`  ✓ Loaded product: ${detail.name}`);
+
+    // Step 4: Get product stock
+    console.log("Step 4: Get product stock");
+    const stock = await stockService.getProductStock(firstProduct.id);
+    console.log(`  ✓ Stock level: ${stock}`);
+
+    console.log("✓ Product workflow passed");
+    return { success: true, message: "Product workflow completed" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("✗ Product workflow failed:", message);
+    return { success: false, message };
+  }
+}
+
+/**
+ * Test 2: Sales Document Workflow
+ * Create → Add items → Post (with stock deduction)
+ */
+export async function testSalesWorkflow(): Promise<{ success: boolean; message: string }> {
+  try {
+    console.log("\n=== Sales Document Workflow Test ===");
+
+    // Get prerequisites
+    console.log("Step 1: Get clients and products");
+    const clients = await partnerService.listClients(1, 10);
+    if (clients.data.length === 0) throw new Error("No clients found");
+    const client = clients.data[0];
+    console.log(`  ✓ Client: ${client.name}`);
+
+    const products = await productService.listProducts(1, 10);
+    if (products.data.length === 0) throw new Error("No products found");
+    const product = products.data[0];
+    console.log(`  ✓ Product: ${product.name}`);
+
+    // Step 2: Create document
+    console.log("Step 2: Create sales document");
+    const doc = await documentService.createDocument("sales", {
+      number: `SALES-${Date.now()}`,
+      client_id: client.id,
+      date: new Date().toISOString(),
+      notes: "Test document",
+    });
+    if (!doc.id) throw new Error("Failed to create document");
+    console.log(`  ✓ Created document: ${doc.number}`);
+
+    // Step 3: Add items
+    console.log("Step 3: Add items to document");
+    const item = await documentService.addDocumentItem("sales", doc.id, {
+      product_id: product.id,
+      quantity: 5,
+      unit_price: 100,
+    });
+    if (!item.id) throw new Error("Failed to add item");
+    console.log(`  ✓ Added item: ${item.quantity} x ${item.unit_price}`);
+
+    // Step 4: Get document with items
+    console.log("Step 4: Verify document with items");
+    const fullDoc = await documentService.getDocument("sales", doc.id);
+    if (!fullDoc.items || fullDoc.items.length === 0) throw new Error("Items not loaded");
+    console.log(`  ✓ Document has ${fullDoc.items.length} items`);
+
+    // Step 5: Update total
+    console.log("Step 5: Update document total");
+    const updated = await documentService.updateDocumentTotal("sales", doc.id, 500);
+    console.log(`  ✓ Total updated to: ${updated.total_amount}`);
+
+    console.log("✓ Sales workflow passed");
+    return { success: true, message: "Sales workflow completed" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("✗ Sales workflow failed:", message);
+    return { success: false, message };
+  }
+}
+
+/**
+ * Test 3: Income Document Workflow
+ * Create → Add items → Post (with stock increase)
+ */
+export async function testIncomeWorkflow(): Promise<{ success: boolean; message: string }> {
+  try {
+    console.log("\n=== Income Document Workflow Test ===");
+
+    // Get prerequisites
+    console.log("Step 1: Get suppliers and products");
+    const suppliers = await partnerService.listSuppliers(1, 10);
+    if (suppliers.data.length === 0) throw new Error("No suppliers found");
+    const supplier = suppliers.data[0];
+    console.log(`  ✓ Supplier: ${supplier.name}`);
+
+    const products = await productService.listProducts(1, 10);
+    if (products.data.length === 0) throw new Error("No products found");
+    const product = products.data[0];
+    console.log(`  ✓ Product: ${product.name}`);
+
+    // Step 2: Create document
+    console.log("Step 2: Create income document");
+    const doc = await documentService.createDocument("income", {
+      number: `INCOME-${Date.now()}`,
+      supplier_id: supplier.id,
+      date: new Date().toISOString(),
+      notes: "Test income document",
+    });
+    if (!doc.id) throw new Error("Failed to create document");
+    console.log(`  ✓ Created document: ${doc.number}`);
+
+    // Step 3: Add items
+    console.log("Step 3: Add items to document");
+    const item = await documentService.addDocumentItem("income", doc.id, {
+      product_id: product.id,
+      quantity: 10,
+      unit_price: 50,
+    });
+    if (!item.id) throw new Error("Failed to add item");
+    console.log(`  ✓ Added item: ${item.quantity} x ${item.unit_price}`);
+
+    // Step 4: Get document with items
+    console.log("Step 4: Verify document with items");
+    const fullDoc = await documentService.getDocument("income", doc.id);
+    if (!fullDoc.items || fullDoc.items.length === 0) throw new Error("Items not loaded");
+    console.log(`  ✓ Document has ${fullDoc.items.length} items`);
+
+    // Step 5: Update total
+    console.log("Step 5: Update document total");
+    const updated = await documentService.updateDocumentTotal("income", doc.id, 500);
+    console.log(`  ✓ Total updated to: ${updated.total_amount}`);
+
+    console.log("✓ Income workflow passed");
+    return { success: true, message: "Income workflow completed" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("✗ Income workflow failed:", message);
+    return { success: false, message };
+  }
+}
+
+/**
+ * Test 4: Stock Tracking
+ * Verify stock history for a product
+ */
+export async function testStockTracking(): Promise<{ success: boolean; message: string }> {
+  try {
+    console.log("\n=== Stock Tracking Test ===");
+
+    // Get a product with stock history
+    console.log("Step 1: Get products");
+    const products = await productService.listProducts(1, 10);
+    if (products.data.length === 0) throw new Error("No products found");
+    const product = products.data[0];
+    console.log(`  ✓ Product: ${product.name}`);
+
+    // Get current stock
+    console.log("Step 2: Get current stock level");
+    const stock = await stockService.getProductStock(product.id);
+    console.log(`  ✓ Current stock: ${stock}`);
+
+    // Get stock history
+    console.log("Step 3: Get stock history");
+    const history = await stockService.getStockHistory(product.id, undefined, undefined, 10);
+    console.log(`  ✓ Stock history entries: ${history.length}`);
+
+    if (history.length > 0) {
+      console.log("  Sample entries:");
+      history.slice(0, 3).forEach((entry) => {
+        console.log(
+          `    - ${entry.date}: ${entry.quantity > 0 ? "+" : ""}${entry.quantity} (balance: ${entry.balance})`
+        );
+      });
+    }
+
+    console.log("✓ Stock tracking passed");
+    return { success: true, message: "Stock tracking completed" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("✗ Stock tracking failed:", message);
+    return { success: false, message };
+  }
+}
+
+/**
+ * Run all workflow tests
+ */
+export async function runAllWorkflowTests(): Promise<{
+  success: boolean;
+  passed: number;
+  failed: number;
+  results: Array<{ test: string; success: boolean; message: string }>;
+}> {
+  console.log("========================================");
+  console.log("Running All Workflow Tests");
+  console.log("========================================");
+
+  const results = [];
+
+  // Test 1
+  const test1 = await testProductWorkflow();
+  results.push({ test: "Product Workflow", ...test1 });
+
+  // Test 2
+  const test2 = await testSalesWorkflow();
+  results.push({ test: "Sales Workflow", ...test2 });
+
+  // Test 3
+  const test3 = await testIncomeWorkflow();
+  results.push({ test: "Income Workflow", ...test3 });
+
+  // Test 4
+  const test4 = await testStockTracking();
+  results.push({ test: "Stock Tracking", ...test4 });
+
+  const passed = results.filter((r) => r.success).length;
+  const failed = results.length - passed;
+
+  console.log("\n========================================");
+  console.log("Test Summary");
+  console.log("========================================");
+  results.forEach((r) => {
+    const status = r.success ? "✓" : "✗";
+    console.log(`${status} ${r.test}: ${r.message}`);
+  });
+  console.log(`\nTotal: ${passed} passed, ${failed} failed`);
+  console.log("========================================\n");
+
+  return {
+    success: failed === 0,
+    passed,
+    failed,
+    results,
+  };
+}

@@ -51,28 +51,31 @@ priceSettingDocumentsRouter.post("/", async (c) => {
     const body = await c.req.json();
     const { date, items } = body;
 
-    const result = await db
-      .insertInto("price_setting_document")
-      .values({
-        date: date || new Date().toISOString(),
-        posted: 0,
-      })
-      .executeTakeFirstOrThrow();
+    const documentId = await db.transaction().execute(async (trx) => {
+      const result = await trx
+        .insertInto("price_setting_document")
+        .values({
+          date: date || new Date().toISOString(),
+          posted: 0,
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow();
 
-    const documentId = result.insertId;
+      if (items && items.length > 0) {
+        await trx
+          .insertInto("price_setting_document_item")
+          .values(
+            items.map((item: any) => ({
+              document_id: result.id,
+              product_id: item.product_id,
+              price: item.price,
+            })),
+          )
+          .execute();
+      }
 
-    if (items && items.length > 0) {
-      await db
-        .insertInto("price_setting_document_item")
-        .values(
-          items.map((item: any) => ({
-            document_id: documentId,
-            product_id: item.product_id,
-            price: item.price,
-          })),
-        )
-        .execute();
-    }
+      return result.id;
+    });
 
     return c.json(
       { data: { id: documentId, date, posted: false, items } },
@@ -127,7 +130,7 @@ priceSettingDocumentsRouter.post("/:id/post", async (c) => {
     // Mark document as posted
     await db
       .updateTable("price_setting_document")
-      .set({ posted: true })
+      .set({ posted: 1 })
       .where("id", "=", id)
       .execute();
 
@@ -192,7 +195,7 @@ priceSettingDocumentsRouter.delete("/:id/post", async (c) => {
     // Mark document as not posted
     await db
       .updateTable("price_setting_document")
-      .set({ posted: false })
+      .set({ posted: 0 })
       .where("id", "=", id)
       .execute();
 
@@ -211,15 +214,52 @@ priceSettingDocumentsRouter.put("/:id", async (c) => {
   try {
     const id = parseInt(c.req.param("id"));
     const body = await c.req.json();
-    const { date } = body;
+    const { date, items } = body;
 
-    await db
-      .updateTable("price_setting_document")
-      .set({ date })
+    const document = await db
+      .selectFrom("price_setting_document")
+      .select(["posted"])
       .where("id", "=", id)
-      .executeTakeFirst();
+      .executeTakeFirstOrThrow();
 
-    return c.json({ data: { id, date } });
+    if (document.posted && items?.length) {
+      return c.json(
+        { error: "Cant update items of posted document" },
+        400,
+      );
+    }
+
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable("price_setting_document")
+        .set({ date })
+        .where("id", "=", id)
+        .executeTakeFirst();
+
+      if (items) {
+        await trx
+          .deleteFrom("price_setting_document_item")
+          .where("document_id", "=", id)
+          .execute();
+
+        if (items.length) {
+          await trx
+            .insertInto("price_setting_document_item")
+            .values(
+              items.map(
+                (item: { product_id: number; price: number }) => ({
+                  document_id: id,
+                  product_id: item.product_id,
+                  price: item.price,
+                }),
+              ),
+            )
+            .execute();
+        }
+      }
+    });
+
+    return c.json({ data: { id, date, items } });
   } catch (error) {
     logger.error("Failed to update price setting document", error);
     return c.json({ error: "Failed to update price setting document" }, 500);
