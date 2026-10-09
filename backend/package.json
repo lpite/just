@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "gen-types": "DATABASE_URL='data/app.db' kysely-codegen --out-file ./db/db-types.ts",
-    "seed": "bun run scripts/seed.ts"
+    "seed": "bun run scripts/seed.ts",
+    "compare-sync": "node scripts/compare-product-sync.mjs"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",

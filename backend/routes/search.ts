@@ -1,8 +1,6 @@
 import { Hono } from "hono";
 import MiniSearch from "minisearch";
 import { db } from "../db/db";
-import { sql } from "kysely";
-// import { db } from "./db";
 
 let FILLED = false;
 
@@ -61,10 +59,10 @@ async function getAvailability(ids: string[]) {
       "product_price_latest.product_id",
       "product.id",
     )
-    .select([
+    .select(({ fn, lit }) => [
       "product.id as id",
       "product_price_latest.price",
-      sql<number>`SUM(product_stock.quantity)`.as("quantity"),
+      fn.coalesce(fn.sum("product_stock.quantity"), lit(0)).as("quantity"),
     ])
     .where(
       "product.id",
