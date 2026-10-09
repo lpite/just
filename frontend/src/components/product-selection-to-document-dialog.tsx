@@ -52,6 +52,7 @@ interface ProductSelectionDialogProps {
 export function ProductSelectionToDocumentDialog({
   addNewItem,
   disabled,
+  type,
 }: ProductSelectionDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchInput, setSearchInput] = useState("");
@@ -81,6 +82,20 @@ export function ProductSelectionToDocumentDialog({
     });
     clearCart();
     setIsOpen(false);
+  }
+
+  function selectProduct(product: SearchResult) {
+    if (type === "income") {
+      setSelectedProduct(product);
+      return;
+    }
+
+    addToCart({
+      id: product.id,
+      name: product.name,
+      quantity: 1,
+      price: product.price,
+    });
   }
 
   return (
@@ -127,7 +142,7 @@ export function ProductSelectionToDocumentDialog({
             <MyTable
               columns={columns}
               data={results}
-              onRowDoubleClick={(row) => setSelectedProduct(row.original)}
+              onRowDoubleClick={(row) => selectProduct(row.original)}
             />
             {isLoading && <div className="text-center py-4">Loading...</div>}
             {!isLoading && query && results.length === 0 && (
@@ -142,7 +157,7 @@ export function ProductSelectionToDocumentDialog({
             removeItem={removeItem}
             onClose={() => setIsOpen(false)}
           />
-          {selectedProduct && (
+          {type === "income" && selectedProduct && (
             <PriceAndQuantityDialog
               product={selectedProduct}
               addToCart={addToCart}
