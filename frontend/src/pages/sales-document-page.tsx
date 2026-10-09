@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { createColumnHelper } from "@tanstack/react-table";
 import { SalesDocument, SalesDocumentItem, Partner } from "../api/types";
@@ -16,9 +16,12 @@ import { toDatetimeLocal } from "../utils/toDatetimeLocal";
 const itemColumnHelper = createColumnHelper<SalesDocumentItem>();
 
 export function SalesDocumentPage() {
-  const [match, params] = useRoute("/sales-document/:id");
+  const [, params] = useRoute("/sales-document/:id");
   const [, setLocation] = useLocation();
-  const id = (params as any)?.id || "";
+
+  const [editable, setEditable] = useState(true);
+
+  const id = (params as { id?: string } | null)?.id || "";
   const isNew = id === "new";
   const documentId = isNew ? undefined : Number(id);
 
@@ -26,13 +29,7 @@ export function SalesDocumentPage() {
     "sales",
     documentId!,
   );
-  const {
-    create,
-    update,
-    post,
-    unpost,
-    delete: deleteDocument,
-  } = useDocumentMutations();
+  const { create, update, post, unpost } = useDocumentMutations();
 
   const [formData, setFormData] = useState<SalesDocument>({
     id: 0,
@@ -59,7 +56,11 @@ export function SalesDocumentPage() {
 
   useEffect(() => {
     if (document) {
-      setFormData(document);
+      if (document.posted) {
+        setEditable(false);
+      }
+
+      setFormData(document as SalesDocument);
     }
   }, [document]);
 
@@ -86,6 +87,10 @@ export function SalesDocumentPage() {
           id: 0,
           document_id: prev.id,
           product_id: Number(item.id),
+          product: {
+            name: item.name,
+            article: "",
+          },
           price: item.price,
           quantity: item.quantity,
           created_at: new Date().toISOString(),
@@ -101,35 +106,45 @@ export function SalesDocumentPage() {
     }));
   };
 
-  const handleUpdateItem = (index: number, field: string, value: any) => {
+  const handleUpdateItem = (
+    index: number,
+    field: "quantity" | "price",
+    value: number,
+  ) => {
     setFormData((prev) => ({
       ...prev,
       items: (prev.items || []).map((item, i) =>
-        i === index ? { ...item, [field]: value } : item,
+        i === index
+          ? field === "quantity"
+            ? { ...item, quantity: value }
+            : { ...item, price: value }
+          : item,
       ),
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setIsLoading(true);
 
     try {
+      const items = formData.items?.map((item) => ({
+        product_id: item.product_id,
+        price: item.price,
+        quantity: item.quantity,
+      }));
+
       if (isNew) {
         const result = await create.execute("sales", {
           date: formData.date,
           partner_id: formData.partner_id,
-          items: formData.items?.map((item) => ({
-            product_id: item.product_id,
-            price: item.price,
-            quantity: item.quantity,
-          })),
+          items,
         });
         setLocation(`/sales-document/${result.id}`);
       } else {
         await update.execute("sales", formData.id, {
           date: formData.date,
           partner_id: formData.partner_id,
+          items,
         });
       }
     } catch (error) {
@@ -159,84 +174,105 @@ export function SalesDocumentPage() {
     }
   };
 
-  const handleDelete = async () => {
-    if (window.confirm("Delete this document?")) {
-      try {
-        await deleteDocument.execute("sales", formData.id);
-        setLocation("/list/sales-document");
-      } catch (error) {
-        console.error("Error deleting document:", error);
-      }
-    }
-  };
-
-  const itemColumns = useMemo(
-    () => [
-      itemColumnHelper.accessor("product_id", {
-        header: "Product ID",
-      }),
-      itemColumnHelper.accessor("quantity", {
-        header: "Quantity",
-        cell: (info) => (
-          <input
-            type="number"
-            value={info.getValue()}
-            onChange={(e) =>
-              handleUpdateItem(
-                (info.row as any).index,
-                "quantity",
-                Number(e.target.value),
-              )
-            }
-            className="w-20 border px-1"
-          />
-        ),
-      }),
-      itemColumnHelper.accessor("price", {
-        header: "Price",
-        cell: (info) => (
-          <input
-            type="number"
-            value={info.getValue()}
-            onChange={(e) =>
-              handleUpdateItem(
-                (info.row as any).index,
-                "price",
-                Number(e.target.value),
-              )
-            }
-            className="w-20 border px-1"
-            step="0.01"
-          />
-        ),
-      }),
-      itemColumnHelper.display({
-        id: "actions",
-        header: "Actions",
-        cell: (info) => (
-          <button
-            onClick={() => handleRemoveItem((info.row as any).index)}
-            className="text-red-600 hover:text-red-800"
-          >
-            Remove
-          </button>
-        ),
-      }),
-    ],
-    [],
-  );
+  const itemColumns = [
+    itemColumnHelper.display({
+      header: "#",
+      cell: ({ row }) => row.index + 1,
+    }),
+    itemColumnHelper.accessor("product_id", {
+      header: "Product ID",
+    }),
+    itemColumnHelper.accessor("product.article", {
+      header: "article",
+      cell: (info) => info.getValue() ?? "-",
+    }),
+    itemColumnHelper.accessor("product.name", {
+      header: "name",
+      cell: (info) => info.getValue() ?? "-",
+    }),
+    itemColumnHelper.accessor("quantity", {
+      header: "Quantity",
+      meta: {
+        editable: true,
+        onChange: (rowIndex: number, value: string) =>
+          handleUpdateItem(rowIndex, "quantity", Number(value)),
+      },
+    }),
+    itemColumnHelper.accessor("price", {
+      header: "Price",
+      meta: {
+        editable: true,
+        onChange: (rowIndex: number, value: string) =>
+          handleUpdateItem(rowIndex, "price", Number(value)),
+      },
+    }),
+    itemColumnHelper.display({
+      id: "actions",
+      header: "Actions",
+      cell: (info) => (
+        <button
+          onClick={() => handleRemoveItem(info.row.index)}
+          className="text-red-600 hover:text-red-800"
+        >
+          Remove
+        </button>
+      ),
+    }),
+  ];
 
   if (!isNew && isLoadingDocument) return <div>Loading...</div>;
 
   return (
     <main>
       <NavBar />
-      <div className="p-4 max-w-4xl">
+      <div className="p-4">
         <h1 className="text-2xl font-bold mb-4">
-          {isNew ? "New Sales Document" : `Sales Document #${formData.id}`}
+          {isNew ? "Новий продаж" : `Продаж #${formData.id}`}
         </h1>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
+          <div className="flex gap-2 justify-start pt-4">
+            <Button
+              type="button"
+              variant="contained"
+              disabled={isLoading}
+              onClick={handleSubmit}
+            >
+              Зберегти
+            </Button>
+            {!isNew && (
+              <>
+                {!formData.posted ? (
+                  <Button
+                    onClick={handlePost}
+                    variant="contained"
+                    color="success"
+                    disabled={isLoading || post.isLoading}
+                  >
+                    Провести
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleUnpost}
+                    variant="contained"
+                    color="warning"
+                    disabled={isLoading || unpost.isLoading}
+                  >
+                    Розпровести
+                  </Button>
+                )}
+              </>
+            )}
+            <Button
+              type="button"
+              variant="outlined"
+              disabled={isLoading}
+              onClick={() => setEditable(true)}
+            >
+              Редагувати
+            </Button>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <TextField
               type="datetime-local"
@@ -245,11 +281,13 @@ export function SalesDocumentPage() {
               onChange={handleDateChange}
               InputLabelProps={{ shrink: true }}
               fullWidth
+              disabled={!editable}
             />
             <select
               value={formData.partner_id || ""}
               onChange={handlePartnerChange}
               className="border px-2 py-2 rounded"
+              disabled={!editable}
             >
               <option value="">Select Partner</option>
               {partners.map((partner) => (
@@ -262,60 +300,20 @@ export function SalesDocumentPage() {
 
           <div className="border rounded p-4">
             <h2 className="text-lg font-bold mb-4">Items</h2>
-            <MyTable columns={itemColumns} data={formData.items || []} />
             <div className="mt-4">
               <ProductSelectionToDocumentDialog
                 addNewItem={handleAddItem}
-                disabled={isNew && formData.partner_id === 0}
+                disabled={(isNew && formData.partner_id === 0) || !editable}
                 type="sales"
               />
             </div>
+            <MyTable
+              columns={itemColumns}
+              data={formData.items || []}
+              disabled={!editable}
+            />
           </div>
-
-          <div className="flex gap-2 justify-end pt-4">
-            <Button
-              onClick={() => setLocation("/list/sales-document")}
-              variant="outlined"
-            >
-              Cancel
-            </Button>
-            {!isNew && (
-              <>
-                <Button
-                  onClick={handleDelete}
-                  variant="outlined"
-                  color="error"
-                  disabled={isLoading}
-                >
-                  Delete
-                </Button>
-                {!formData.posted && (
-                  <Button
-                    onClick={handlePost}
-                    variant="contained"
-                    color="warning"
-                    disabled={isLoading || post.isLoading}
-                  >
-                    Post
-                  </Button>
-                )}
-                {formData.posted && (
-                  <Button
-                    onClick={handleUnpost}
-                    variant="contained"
-                    color="info"
-                    disabled={isLoading || unpost.isLoading}
-                  >
-                    Unpost
-                  </Button>
-                )}
-              </>
-            )}
-            <Button type="submit" variant="contained" disabled={isLoading}>
-              {isNew ? "Create" : "Update"}
-            </Button>
-          </div>
-        </form>
+        </div>
       </div>
     </main>
   );

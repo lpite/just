@@ -46,7 +46,11 @@ export async function createSalesDocument(data: {
  */
 export async function updateSalesDocument(
   id: number,
-  data: { date?: string; partner_id?: number },
+  data: {
+    date?: string;
+    partner_id?: number;
+    items?: Array<{ product_id: number; price: number; quantity: number }>;
+  },
 ): Promise<SalesDocument> {
   const response = await apiPut<{ data: SalesDocument }>(
     `/api/sales-documents/${id}`,

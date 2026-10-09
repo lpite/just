@@ -46,6 +46,7 @@ export interface SalesDocumentItem {
   id: number;
   document_id: number;
   product_id: number;
+  product: { name: string; article: string };
   price: number;
   quantity: number;
   created_at: string;

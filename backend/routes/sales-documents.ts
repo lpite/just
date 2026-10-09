@@ -1,8 +1,46 @@
 import { Hono } from "hono";
 import { db } from "../db/db";
 import { logger } from "../lib/logger";
+import { jsonBuildObject } from "kysely/helpers/sqlite";
+import { ParseJSONResultsPlugin, sql } from "kysely";
 
 const salesDocumentsRouter = new Hono();
+
+async function checkProductStock(
+  items: { product_id: number; quantity: number }[],
+  excludeDocumentId?: number,
+): Promise<string | null> {
+  const requiredByProduct = new Map<number, number>();
+  for (const item of items) {
+    requiredByProduct.set(
+      item.product_id,
+      (requiredByProduct.get(item.product_id) || 0) + Number(item.quantity),
+    );
+  }
+
+  const stockRows = await db
+    .selectFrom("product_stock")
+    .select([
+      "product_id",
+      sql<number>`coalesce(sum(case when product_stock.document_id = ${excludeDocumentId ?? -1} then 0 else product_stock.quantity end), 0)`.as("total"),
+    ])
+    .where("product_id", "in", items.map((item) => item.product_id))
+    .groupBy("product_id")
+    .execute();
+
+  const available = new Map(
+    stockRows.map((row) => [row.product_id, Number(row.total)]),
+  );
+
+  for (const [product_id, required] of requiredByProduct) {
+    const inStock = available.get(product_id) || 0;
+    if (required > inStock) {
+      return `Not enough stock for product ${product_id}: available ${inStock}, required ${required}`;
+    }
+  }
+
+  return null;
+}
 
 // GET all sales documents
 salesDocumentsRouter.get("/", async (c) => {
@@ -34,8 +72,19 @@ salesDocumentsRouter.get("/:id", async (c) => {
 
     const items = await db
       .selectFrom("sales_document_item")
-      .selectAll()
+      .leftJoin("product", "product.id", "sales_document_item.product_id")
+      .select((eb) => [
+        "sales_document_item.id",
+        "sales_document_item.quantity",
+        "sales_document_item.price",
+        "sales_document_item.product_id",
+        jsonBuildObject({
+          article: eb.ref("product.article"),
+          name: eb.ref("product.name"),
+        }).as("product"),
+      ])
       .where("document_id", "=", id)
+      .withPlugin(new ParseJSONResultsPlugin())
       .execute();
 
     return c.json({ data: { ...document, items } });
@@ -111,42 +160,51 @@ salesDocumentsRouter.post("/:id/post", async (c) => {
       return c.json({ error: "Sales document not found" }, 404);
     }
 
-    // If already posted, skip creation and just return success
     if (document.posted) {
-      await db
-        .deleteFrom("product_stock")
-        .where("document_id", "=", document.id)
-        .execute();
+      return c.json({
+        data: { id, posted: true },
+        message: "Sales document posted successfully",
+      });
     }
 
-    // Get document items
+    if (!document.date) {
+      throw new Error("Cant post document without date");
+    }
+
     const items = await db
       .selectFrom("sales_document_item")
       .selectAll()
       .where("document_id", "=", id)
       .execute();
 
-    // Create product stock records with negative quantity for sales
-    if (items.length > 0) {
-      await db
+    if (!items.length) {
+      throw new Error("Cant post document without items");
+    }
+
+    const stockError = await checkProductStock(items);
+    if (stockError) {
+      return c.json({ error: stockError }, 400);
+    }
+
+    await db.transaction().execute(async (trx) => {
+      await trx
         .insertInto("product_stock")
         .values(
           items.map((item) => ({
             product_id: item.product_id,
-            quantity: -item.quantity, // Negative for sales
-            timestamp: new Date().toISOString(),
-            document_id: document?.id,
+            quantity: -item.quantity,
+            timestamp: document.date as string,
+            document_id: document.id,
           })),
         )
         .execute();
-    }
 
-    // Mark document as posted
-    await db
-      .updateTable("sales_document")
-      .set({ posted: 1 })
-      .where("id", "=", id)
-      .execute();
+      await trx
+        .updateTable("sales_document")
+        .set({ posted: 1 })
+        .where("id", "=", id)
+        .executeTakeFirst();
+    });
 
     return c.json({
       data: { id, posted: true },
@@ -174,38 +232,25 @@ salesDocumentsRouter.post("/:id/unpost", async (c) => {
       return c.json({ error: "Sales document not found" }, 404);
     }
 
-    // If not posted, no need to unpost
-    if (document.posted) {
-      // Get document items
-      const items = await db
-        .selectFrom("sales_document_item")
-        .selectAll()
-        .where("document_id", "=", id)
-        .execute();
-
-      // Remove product stock records (reverse the transaction)
-      if (items.length > 0) {
-        // Get all stock records and remove the ones matching this document's items
-        // We add positive quantity to reverse the negative quantities
-        await db
-          .insertInto("product_stock")
-          .values(
-            items.map((item) => ({
-              product_id: item.product_id,
-              quantity: item.quantity, // Positive to reverse the negative
-              timestamp: new Date().toISOString(),
-            })),
-          )
-          .execute();
-      }
+    if (!document.posted) {
+      return c.json({
+        data: { id, posted: false },
+        message: "Sales document unposted successfully",
+      });
     }
 
-    // Mark document as not posted
-    await db
-      .updateTable("sales_document")
-      .set({ posted: 1 })
-      .where("id", "=", id)
-      .execute();
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .deleteFrom("product_stock")
+        .where("document_id", "=", document.id)
+        .execute();
+
+      await trx
+        .updateTable("sales_document")
+        .set({ posted: 0 })
+        .where("id", "=", id)
+        .execute();
+    });
 
     return c.json({
       data: { id, posted: false },
@@ -222,13 +267,77 @@ salesDocumentsRouter.put("/:id", async (c) => {
   try {
     const id = parseInt(c.req.param("id"));
     const body = await c.req.json();
-    const { date, partner_id } = body;
+    const { date, partner_id, items } = body;
 
-    await db
-      .updateTable("sales_document")
-      .set({ date, partner_id })
+    const document = await db
+      .selectFrom("sales_document")
+      .select(["posted", "date"])
       .where("id", "=", id)
-      .executeTakeFirst();
+      .executeTakeFirstOrThrow();
+
+    if (document.posted && !items?.length) {
+      throw new Error("Cant save posted document without items");
+    }
+
+    if (document.posted && items?.length) {
+      const stockError = await checkProductStock(items, id);
+      if (stockError) {
+        return c.json({ error: stockError }, 400);
+      }
+    }
+
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable("sales_document")
+        .set({ date, partner_id })
+        .where("id", "=", id)
+        .executeTakeFirst();
+
+      if (document.posted) {
+        await trx
+          .deleteFrom("product_stock")
+          .where("document_id", "=", id)
+          .where("quantity", "<", 0)
+          .executeTakeFirst();
+      }
+
+      await trx
+        .deleteFrom("sales_document_item")
+        .where("document_id", "=", id)
+        .executeTakeFirst();
+
+      if (items?.length) {
+        await trx
+          .insertInto("sales_document_item")
+          .values(
+            items.map(
+              (item: { product_id: number; quantity: number; price: number }) => ({
+                document_id: id,
+                product_id: item.product_id,
+                quantity: item.quantity,
+                price: item.price,
+              }),
+            ),
+          )
+          .executeTakeFirst();
+      }
+
+      if (document.posted && items?.length) {
+        await trx
+          .insertInto("product_stock")
+          .values(
+            items.map(
+              (item: { product_id: number; quantity: number; price: number }) => ({
+                document_id: id,
+                product_id: item.product_id,
+                quantity: -item.quantity,
+                timestamp: document.date as string,
+              }),
+            ),
+          )
+          .executeTakeFirst();
+      }
+    });
 
     return c.json({ data: { id, date, partner_id } });
   } catch (error) {
