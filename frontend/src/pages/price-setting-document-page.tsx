@@ -32,10 +32,11 @@ export function PriceSettingDocumentPage() {
     items: [],
   });
 
+  const [editable, setEditable] = useState(true);
   const [isLoadingDocument, setIsLoadingDocument] = useState(!isNew);
   const [isSaving, setIsSaving] = useState(false);
-
-  const editable = !formData.posted;
+  const [isPosting, setIsPosting] = useState(false);
+  const [isUnposting, setIsUnposting] = useState(false);
 
   useEffect(() => {
     if (isNew) return;
@@ -45,7 +46,9 @@ export function PriceSettingDocumentPage() {
     priceSettingDocumentService
       .getPriceSettingDocument(documentId!)
       .then((document) => {
-        if (!cancelled) setFormData(document);
+        if (cancelled) return;
+        if (document.posted) setEditable(false);
+        setFormData(document);
       })
       .catch((error) =>
         console.error("Error loading price setting document:", error),
@@ -128,16 +131,20 @@ export function PriceSettingDocumentPage() {
   };
 
   const handlePost = async () => {
+    setIsPosting(true);
     try {
       await priceSettingDocumentService.postPriceSettingDocument(formData.id);
       setFormData((prev) => ({ ...prev, posted: true }));
     } catch (error) {
       console.error("Error posting price setting document:", error);
+    } finally {
+      setIsPosting(false);
     }
   };
 
   const handleUnpost = async () => {
     if (window.confirm("Unpost this document?")) {
+      setIsUnposting(true);
       try {
         await priceSettingDocumentService.unpostPriceSettingDocument(
           formData.id,
@@ -145,19 +152,8 @@ export function PriceSettingDocumentPage() {
         setFormData((prev) => ({ ...prev, posted: false }));
       } catch (error) {
         console.error("Error unposting price setting document:", error);
-      }
-    }
-  };
-
-  const handleDelete = async () => {
-    if (window.confirm("Delete this document?")) {
-      try {
-        await priceSettingDocumentService.deletePriceSettingDocument(
-          formData.id,
-        );
-        setLocation("/list/price-setting-document");
-      } catch (error) {
-        console.error("Error deleting price setting document:", error);
+      } finally {
+        setIsUnposting(false);
       }
     }
   };
@@ -212,7 +208,7 @@ export function PriceSettingDocumentPage() {
             <Button
               type="button"
               variant="contained"
-              disabled={isSaving || !editable}
+              disabled={isSaving}
               onClick={handleSubmit}
             >
               Зберегти
@@ -224,7 +220,7 @@ export function PriceSettingDocumentPage() {
                     onClick={handlePost}
                     variant="contained"
                     color="success"
-                    disabled={isSaving}
+                    disabled={isSaving || isPosting}
                   >
                     Провести
                   </Button>
@@ -233,21 +229,21 @@ export function PriceSettingDocumentPage() {
                     onClick={handleUnpost}
                     variant="contained"
                     color="warning"
-                    disabled={isSaving}
+                    disabled={isSaving || isUnposting}
                   >
                     Розпровести
                   </Button>
                 )}
-                <Button
-                  onClick={handleDelete}
-                  variant="outlined"
-                  color="error"
-                  disabled={isSaving}
-                >
-                  Видалити
-                </Button>
               </>
             )}
+            <Button
+              type="button"
+              variant="outlined"
+              disabled={isSaving}
+              onClick={() => setEditable(true)}
+            >
+              Редагувати
+            </Button>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

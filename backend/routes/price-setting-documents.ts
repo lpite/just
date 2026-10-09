@@ -222,19 +222,38 @@ priceSettingDocumentsRouter.put("/:id", async (c) => {
       .where("id", "=", id)
       .executeTakeFirstOrThrow();
 
-    if (document.posted && items?.length) {
-      return c.json(
-        { error: "Cant update items of posted document" },
-        400,
-      );
-    }
-
     await db.transaction().execute(async (trx) => {
       await trx
         .updateTable("price_setting_document")
         .set({ date })
         .where("id", "=", id)
         .executeTakeFirst();
+
+      if (document.posted) {
+        const oldItems = await trx
+          .selectFrom("price_setting_document_item")
+          .selectAll()
+          .where("document_id", "=", id)
+          .execute();
+
+        for (const item of oldItems) {
+          const priceRecord = await trx
+            .selectFrom("product_price")
+            .selectAll()
+            .where("product_id", "=", item.product_id)
+            .where("price", "=", item.price)
+            .orderBy("timestamp", "desc")
+            .limit(1)
+            .executeTakeFirst();
+
+          if (priceRecord) {
+            await trx
+              .deleteFrom("product_price")
+              .where("id", "=", priceRecord.id)
+              .execute();
+          }
+        }
+      }
 
       if (items) {
         await trx
@@ -251,6 +270,21 @@ priceSettingDocumentsRouter.put("/:id", async (c) => {
                   document_id: id,
                   product_id: item.product_id,
                   price: item.price,
+                }),
+              ),
+            )
+            .execute();
+        }
+
+        if (document.posted && items.length) {
+          await trx
+            .insertInto("product_price")
+            .values(
+              items.map(
+                (item: { product_id: number; price: number }) => ({
+                  product_id: item.product_id,
+                  price: item.price,
+                  timestamp: new Date().toISOString(),
                 }),
               ),
             )
