@@ -68,7 +68,7 @@ export interface IncomeDocumentItem {
   id: number;
   document_id: number;
   product_id: number;
-  product: { name: string; artice: string };
+  product: { name: string; article: string };
   price: number;
   quantity: number;
   created_at: string;
@@ -88,6 +88,7 @@ export interface StockEntry {
   product_id: number;
   quantity: number;
   document_id?: number;
+  document_type?: "sales" | "income" | null;
   timestamp: string;
 }
 
