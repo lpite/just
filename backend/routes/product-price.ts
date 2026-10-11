@@ -36,6 +36,43 @@ productPriceRouter.get("/product/:product_id", async (c) => {
   }
 });
 
+// GET price history by product ID (raw records)
+productPriceRouter.get("/history/product/:product_id", async (c) => {
+  try {
+    const productId = parseInt(c.req.param("product_id"));
+    const prices = await db
+      .selectFrom("product_price")
+      .selectAll()
+      .where("product_id", "=", productId)
+      .orderBy("id")
+      .execute();
+
+    if (prices.length === 0) {
+      return c.json({ error: "No price history found for this product" }, 404);
+    }
+
+    const items = await db
+      .selectFrom("price_setting_document_item")
+      .select(["document_id", "price"])
+      .where("product_id", "=", productId)
+      .execute();
+
+    const data = prices.map((row) => {
+      const match = items.find((item) => item.price === row.price);
+      return {
+        ...row,
+        document_id: match?.document_id ?? null,
+        document_type: match ? "price-setting" : null,
+      };
+    });
+
+    return c.json({ data, count: data.length });
+  } catch (error) {
+    logger.error("Failed to fetch product price history", error);
+    return c.json({ error: "Failed to fetch product price history" }, 500);
+  }
+});
+
 // GET price by ID
 productPriceRouter.get("/:id", async (c) => {
   try {

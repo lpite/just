@@ -7,6 +7,11 @@ const reports = [
     title: "Історія складу",
     description: "Зміна залишків кожного продукту за документами",
   },
+  {
+    href: "/reports/price-history",
+    title: "Історія цін",
+    description: "Зміна цін кожного продукту за документами",
+  },
 ];
 
 export default function ReportsPage() {

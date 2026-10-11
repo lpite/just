@@ -22,9 +22,15 @@ async function checkProductStock(
     .selectFrom("product_stock")
     .select([
       "product_id",
-      sql<number>`coalesce(sum(case when product_stock.document_id = ${excludeDocumentId ?? -1} then 0 else product_stock.quantity end), 0)`.as("total"),
+      sql<number>`coalesce(sum(case when product_stock.document_id = ${excludeDocumentId ?? -1} then 0 else product_stock.quantity end), 0)`.as(
+        "total",
+      ),
     ])
-    .where("product_id", "in", items.map((item) => item.product_id))
+    .where(
+      "product_id",
+      "in",
+      items.map((item) => item.product_id),
+    )
     .groupBy("product_id")
     .execute();
 
@@ -311,7 +317,11 @@ salesDocumentsRouter.put("/:id", async (c) => {
           .insertInto("sales_document_item")
           .values(
             items.map(
-              (item: { product_id: number; quantity: number; price: number }) => ({
+              (item: {
+                product_id: number;
+                quantity: number;
+                price: number;
+              }) => ({
                 document_id: id,
                 product_id: item.product_id,
                 quantity: item.quantity,
@@ -327,7 +337,11 @@ salesDocumentsRouter.put("/:id", async (c) => {
           .insertInto("product_stock")
           .values(
             items.map(
-              (item: { product_id: number; quantity: number; price: number }) => ({
+              (item: {
+                product_id: number;
+                quantity: number;
+                price: number;
+              }) => ({
                 document_id: id,
                 product_id: item.product_id,
                 quantity: -item.quantity,

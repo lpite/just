@@ -101,6 +101,8 @@ export interface ProductPrice {
   product_id: number;
   price: number;
   timestamp: string;
+  document_id?: number | null;
+  document_type?: "price-setting" | null;
 }
 
 export interface PriceSettingDocument {

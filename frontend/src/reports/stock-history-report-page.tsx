@@ -1,5 +1,5 @@
 import { NavBar } from "../components/nav-bar";
-import { StockHistoryReport } from "../components/stock-history-report";
+import { StockHistoryReport } from "./stock-history-report";
 
 export default function StockHistoryReportPage() {
   return (

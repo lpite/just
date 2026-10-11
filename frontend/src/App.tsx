@@ -10,8 +10,9 @@ import IncomeDocumentPage from "./pages/income-document-page";
 import PriceSettingDocumentListPage from "./pages/price-setting-document-list-page";
 import PriceSettingDocumentPage from "./pages/price-setting-document-page";
 
-import ReportsPage from "./pages/reports-page";
-import StockHistoryReportPage from "./pages/stock-history-report-page";
+import ReportsPage from "./reports/reports-page";
+import StockHistoryReportPage from "./reports/stock-history-report-page";
+import PriceHistoryReportPage from "./reports/price-history-report-page";
 import SalesDocumentListPage from "./pages/sales-document-list-page";
 import SalesDocumentPage from "./pages/sales-document-page";
 import { MobilePosPage } from "./pages/mobile-pos-page";
@@ -42,6 +43,10 @@ function App() {
         <Route
           path="/reports/stock-history"
           component={StockHistoryReportPage}
+        />
+        <Route
+          path="/reports/price-history"
+          component={PriceHistoryReportPage}
         />
         <Route path="/mobile-pos" component={MobilePosPage} />
       </Switch>

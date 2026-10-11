@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import { SearchResult, StockEntry } from "../api/types";
 import { useProductSearch } from "../api/hooks/useProducts";
 import * as stockService from "../api/services/stockService";
-import { MyTable } from "./table";
+import { MyTable } from "../components/table";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 
