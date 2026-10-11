@@ -21,6 +21,7 @@ import {
   type KeyboardEvent as KeyboardEventReact,
   type MouseEvent as MouseEventReact,
 } from "react";
+import { toast } from "sonner";
 
 type TableButton =
   | {
@@ -50,9 +51,46 @@ interface TableProps {
   onRowClick?: (row: Row<any>) => any;
   onRowDoubleClick?: (row: Row<any>) => any;
   disabled?: boolean;
+  excel?: boolean;
 }
 
 const emptyArray: any[] = [];
+
+type ExcelColumn = {
+  accessorKey?: string | number | symbol;
+  header?: unknown;
+};
+
+function tableToExcelData(columns: ExcelColumn[], rows: unknown[]) {
+  const normalized = columns
+    .filter((c) => c.accessorKey !== undefined)
+    .map((c) => {
+      const accessorKey = String(c.accessorKey);
+      const header = typeof c.header === "string" ? c.header : accessorKey;
+      return { accessorKey, header };
+    });
+
+  if (!normalized.length) return "";
+
+  const lines = [normalized.map((c) => c.header).join("\t")];
+  for (const row of rows) {
+    lines.push(
+      normalized
+        .map((c) => {
+          const value = c.accessorKey.split(".").reduce<unknown>(
+            (acc, part) =>
+              acc && typeof acc === "object"
+                ? (acc as Record<string, unknown>)[part]
+                : undefined,
+            row,
+          );
+          return value == null ? "" : String(value);
+        })
+        .join("\t"),
+    );
+  }
+  return lines.join("\n");
+}
 
 export function MyTable({
   data,
@@ -62,6 +100,7 @@ export function MyTable({
   onRowClick: onRowClickHandler,
   onRowDoubleClick: onRowDoubleClickHander,
   disabled,
+  excel,
 }: TableProps) {
   const table = useReactTable({
     data: data ?? emptyArray,
@@ -133,6 +172,18 @@ export function MyTable({
     newData[selectedRow] = tempItem;
     changeData(newData);
     setSelectedRow(selectedRow + 1);
+  }
+
+  async function handleExcelExport() {
+    const tsv = tableToExcelData(columns, data ?? emptyArray);
+    if (!tsv) return;
+    try {
+      await navigator.clipboard.writeText(tsv);
+      toast.success("Дані скопійовано в буфер обміну (Excel)");
+    } catch (error) {
+      console.error("Failed to copy to clipboard:", error);
+      toast.error("Не вдалося скопіювати в буфер обміну");
+    }
   }
 
   useEffect(() => {
@@ -214,7 +265,7 @@ export function MyTable({
 
   return (
     <div className="pt-2 flex flex-col">
-      {buttons ? (
+      {buttons || excel ? (
         <div className="pb-2 flex gap-1">
           {buttons?.add?.icon || buttons?.add?.text ? (
             <Button
@@ -247,7 +298,7 @@ export function MyTable({
               {buttons.remove.text ? "remove" : null}
             </Button>
           ) : null}
-          {buttons.changeOrder ? (
+          {buttons?.changeOrder ? (
             <>
               <Button
                 size="small"
@@ -266,6 +317,15 @@ export function MyTable({
                 <Icon>arrow_downward</Icon>
               </Button>
             </>
+          ) : null}
+          {excel ? (
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={handleExcelExport}
+            >
+              EXCEL
+            </Button>
           ) : null}
         </div>
       ) : null}
