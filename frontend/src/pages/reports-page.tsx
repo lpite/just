@@ -11,22 +11,24 @@ const reports = [
 
 export default function ReportsPage() {
   return (
-    <main className="p-4">
+    <main>
       <NavBar />
-      <h1 className="text-3xl mb-4">Звіти</h1>
-      <ul className="space-y-2">
-        {reports.map((report) => (
-          <li key={report.href}>
-            <Link
-              className="block border rounded p-4 hover:bg-blue-50"
-              href={report.href}
-            >
-              <span className="font-semibold">{report.title}</span>
-              <p className="text-sm text-gray-500">{report.description}</p>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <div className="p-4">
+        <h1 className="text-3xl mb-4">Звіти</h1>
+        <ul className="space-y-2">
+          {reports.map((report) => (
+            <li key={report.href}>
+              <Link
+                className="block border rounded p-4 hover:bg-blue-50"
+                href={report.href}
+              >
+                <span className="font-semibold">{report.title}</span>
+                <p className="text-sm text-gray-500">{report.description}</p>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
     </main>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useRoute, useLocation, useSearch } from "wouter";
 import { createColumnHelper } from "@tanstack/react-table";
 import { PriceSettingDocument, PriceSettingDocumentItem } from "../api/types";
 import * as priceSettingDocumentService from "../api/services/priceSettingDocumentService";
@@ -20,6 +20,7 @@ const itemColumnHelper = createColumnHelper<PriceSettingItem>();
 export function PriceSettingDocumentPage() {
   const [, params] = useRoute("/price-setting-document/:id");
   const [, setLocation] = useLocation();
+  const search = useSearch();
 
   const id = (params as { id?: string } | null)?.id || "";
   const isNew = id === "new";
@@ -61,6 +62,35 @@ export function PriceSettingDocumentPage() {
       cancelled = true;
     };
   }, [documentId, isNew]);
+
+  useEffect(() => {
+    if (!isNew) return;
+
+    const raw = new URLSearchParams(search).get("prefill");
+    if (!raw) return;
+
+    try {
+      const prefill = JSON.parse(raw) as Array<{
+        product_id: number;
+        price: number;
+        name?: string;
+        article?: string;
+      }>;
+
+      setFormData((prev) => ({
+        ...prev,
+        items: prefill.map((item) => ({
+          id: 0,
+          document_id: 0,
+          product_id: item.product_id,
+          product: { name: item.name ?? "", article: item.article ?? "" },
+          price: item.price,
+        })),
+      }));
+    } catch (error) {
+      console.error("Failed to parse prefill data:", error);
+    }
+  }, [isNew, search]);
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({
@@ -271,6 +301,7 @@ export function PriceSettingDocumentPage() {
               columns={itemColumns}
               data={formData.items || []}
               disabled={!editable}
+              excel
             />
           </div>
         </div>

@@ -311,6 +311,7 @@ export function SalesDocumentPage() {
               columns={itemColumns}
               data={formData.items || []}
               disabled={!editable}
+              excel
             />
           </div>
         </div>

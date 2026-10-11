@@ -12,24 +12,8 @@ import TextField from "@mui/material/TextField";
 import { CartItem } from "../hooks/useCart";
 import { NavBar } from "../components/nav-bar";
 import { toDatetimeLocal } from "../utils/toDatetimeLocal";
-import { toast } from "sonner";
 
 const itemColumnHelper = createColumnHelper<IncomeDocumentItem>();
-
-function itemsToExcel(items: IncomeDocumentItem[]): string {
-  const header = ["#", "Article", "Name", "Quantity", "Price"];
-  const rows = items.map((item, index) => {
-    const product = item.product as { name?: string; article?: string };
-    return [
-      String(index + 1),
-      product.article ?? "",
-      product.name ?? "",
-      String(item.quantity),
-      String(item.price),
-    ];
-  });
-  return [header, ...rows].map((row) => row.join("\t")).join("\n");
-}
 
 export function IncomeDocumentPage() {
   const [, params] = useRoute("/income-document/:id");
@@ -166,6 +150,20 @@ export function IncomeDocumentPage() {
     }
   };
 
+  const handleCreateBasedOn = () => {
+    const prefill = (formData.items || []).map((item) => ({
+      product_id: item.product_id,
+      price: item.price,
+      name: item.product?.name ?? "",
+      article: item.product?.article ?? "",
+    }));
+    setLocation(
+      `/price-setting-document/new?prefill=${encodeURIComponent(
+        JSON.stringify(prefill),
+      )}`,
+    );
+  };
+
   const handlePost = async () => {
     try {
       await post.execute("income", formData.id);
@@ -194,17 +192,6 @@ export function IncomeDocumentPage() {
       } catch (error) {
         console.error("Error deleting document:", error);
       }
-    }
-  };
-
-  const handleExcelExport = async () => {
-    const tsv = itemsToExcel(formData.items || []);
-    try {
-      await navigator.clipboard.writeText(tsv);
-      toast.success("Продукти скопійовано в буфер обміну (Excel)");
-    } catch (error) {
-      console.error("Failed to copy to clipboard:", error);
-      toast.error("Не вдалося скопіювати в буфер обміну");
     }
   };
 
@@ -306,6 +293,16 @@ export function IncomeDocumentPage() {
             >
               Редагувати
             </Button>
+            {!isNew && (
+              <Button
+                type="button"
+                variant="outlined"
+                disabled={isLoading}
+                onClick={handleCreateBasedOn}
+              >
+                Створити на основі
+              </Button>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <TextField
@@ -340,12 +337,12 @@ export function IncomeDocumentPage() {
                 disabled={(isNew && formData.partner_id === 0) || !editable}
                 type="income"
               />
-              <Button type="button" onClick={handleExcelExport}>EXCEL</Button>
             </div>
             <MyTable
               columns={itemColumns}
               data={formData.items || []}
               disabled={!editable}
+              excel
             />
           </div>
         </div>

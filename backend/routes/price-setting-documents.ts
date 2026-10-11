@@ -1,6 +1,12 @@
 import { Hono } from "hono";
 import { db } from "../db/db";
 import { logger } from "../lib/logger";
+import {
+  jsonBuildObject,
+  jsonArrayFrom,
+  jsonObjectFrom,
+} from "kysely/helpers/sqlite";
+import { ParseJSONResultsPlugin, sql } from "kysely";
 
 const priceSettingDocumentsRouter = new Hono();
 
@@ -22,23 +28,47 @@ priceSettingDocumentsRouter.get("/", async (c) => {
 priceSettingDocumentsRouter.get("/:id", async (c) => {
   try {
     const id = parseInt(c.req.param("id"));
+
     const document = await db
       .selectFrom("price_setting_document")
-      .selectAll()
-      .where("id", "=", id)
+      .leftJoin(
+        "price_setting_document_item",
+        "price_setting_document_item.document_id",
+        "price_setting_document.id",
+      )
+      .leftJoin(
+        "product",
+        "product.id",
+        "price_setting_document_item.product_id",
+      )
+      .select(({ eb }) => [
+        "price_setting_document.id",
+        "price_setting_document.date",
+        "price_setting_document.posted",
+        sql`
+      json_group_array(
+        json_object(
+          'id', ${eb.ref("price_setting_document_item.id")},
+          'product_id', ${eb.ref("price_setting_document_item.product_id")},
+          'price', ${eb.ref("price_setting_document_item.price")},
+          'product', json_object(
+            'id',${eb.ref("product.id")},
+            'name', ${eb.ref("product.name")}
+          )
+        )
+      )
+    `.as("items"),
+      ])
+      .where("price_setting_document.id", "=", id)
+      .groupBy("price_setting_document.id")
+      .withPlugin(new ParseJSONResultsPlugin())
       .executeTakeFirst();
 
     if (!document) {
       return c.json({ error: "Price setting document not found" }, 404);
     }
 
-    const items = await db
-      .selectFrom("price_setting_document_item")
-      .selectAll()
-      .where("document_id", "=", id)
-      .execute();
-
-    return c.json({ data: { ...document, items } });
+    return c.json({ data: document });
   } catch (error) {
     logger.error("Failed to fetch price setting document", error);
     return c.json({ error: "Failed to fetch price setting document" }, 500);
@@ -265,13 +295,11 @@ priceSettingDocumentsRouter.put("/:id", async (c) => {
           await trx
             .insertInto("price_setting_document_item")
             .values(
-              items.map(
-                (item: { product_id: number; price: number }) => ({
-                  document_id: id,
-                  product_id: item.product_id,
-                  price: item.price,
-                }),
-              ),
+              items.map((item: { product_id: number; price: number }) => ({
+                document_id: id,
+                product_id: item.product_id,
+                price: item.price,
+              })),
             )
             .execute();
         }
@@ -280,13 +308,11 @@ priceSettingDocumentsRouter.put("/:id", async (c) => {
           await trx
             .insertInto("product_price")
             .values(
-              items.map(
-                (item: { product_id: number; price: number }) => ({
-                  product_id: item.product_id,
-                  price: item.price,
-                  timestamp: new Date().toISOString(),
-                }),
-              ),
+              items.map((item: { product_id: number; price: number }) => ({
+                product_id: item.product_id,
+                price: item.price,
+                timestamp: new Date().toISOString(),
+              })),
             )
             .execute();
         }
