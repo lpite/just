@@ -8,7 +8,7 @@ export function NavBar() {
         <NavLink href="/list/income-document" text="Документи надходження" />
         <NavLink href="/list/sales-document" text="Документи продажу" />
         <NavLink href="/list/price-setting-document" text="Ціни" />
-        <NavLink href="/reports/" text="Звіти" />
+        <NavLink href="/reports" text="Звіти" />
       </ul>
     </nav>
   );

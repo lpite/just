@@ -86,13 +86,49 @@ productStockRouter.get("/history/product/:product_id", async (c) => {
       .selectFrom("product_stock")
       .selectAll()
       .where("product_id", "=", productId)
+      .orderBy("id")
       .execute();
 
     if (stocks.length === 0) {
       return c.json({ error: "No stock history found for this product" }, 404);
     }
 
-    return c.json({ data: stocks, count: stocks.length });
+    const documentIds = stocks
+      .map((s) => s.document_id)
+      .filter((id): id is number => id != null);
+
+    const [incomeIds, salesIds] = await Promise.all([
+      documentIds.length
+        ? db
+            .selectFrom("income_document")
+            .select("id")
+            .where("id", "in", documentIds)
+            .execute()
+        : Promise.resolve([] as { id: number }[]),
+      documentIds.length
+        ? db
+            .selectFrom("sales_document")
+            .select("id")
+            .where("id", "in", documentIds)
+            .execute()
+        : Promise.resolve([] as { id: number }[]),
+    ]);
+
+    const incomeSet = new Set(incomeIds.map((r) => r.id));
+    const salesSet = new Set(salesIds.map((r) => r.id));
+
+    const data = stocks.map((row) => ({
+      ...row,
+      document_type: row.document_id
+        ? salesSet.has(row.document_id)
+          ? "sales"
+          : incomeSet.has(row.document_id)
+            ? "income"
+            : null
+        : null,
+    }));
+
+    return c.json({ data, count: data.length });
   } catch (error) {
     logger.error("Failed to fetch product stock history", error);
     return c.json({ error: "Failed to fetch product stock history" }, 500);

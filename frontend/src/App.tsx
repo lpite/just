@@ -11,6 +11,7 @@ import PriceSettingDocumentListPage from "./pages/price-setting-document-list-pa
 import PriceSettingDocumentPage from "./pages/price-setting-document-page";
 
 import ReportsPage from "./pages/reports-page";
+import StockHistoryReportPage from "./pages/stock-history-report-page";
 import SalesDocumentListPage from "./pages/sales-document-list-page";
 import SalesDocumentPage from "./pages/sales-document-page";
 import { MobilePosPage } from "./pages/mobile-pos-page";
@@ -38,6 +39,10 @@ function App() {
           component={PriceSettingDocumentPage}
         />
         <Route path="/reports" component={ReportsPage} />
+        <Route
+          path="/reports/stock-history"
+          component={StockHistoryReportPage}
+        />
         <Route path="/mobile-pos" component={MobilePosPage} />
       </Switch>
     </>

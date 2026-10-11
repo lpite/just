@@ -190,7 +190,7 @@ export function IncomeDocumentPage() {
       itemColumnHelper.accessor("product_id", {
         header: "Product ID",
       }),
-      itemColumnHelper.accessor("product.artice", {
+      itemColumnHelper.accessor("product.article", {
         header: "article",
       }),
       itemColumnHelper.accessor("product.name", {

@@ -1,21 +1,32 @@
-// @ts-nocheck
-import { useEffect } from "react";
+import { Link } from "wouter";
 import { NavBar } from "../components/nav-bar";
 
+const reports = [
+  {
+    href: "/reports/stock-history",
+    title: "Історія складу",
+    description: "Зміна залишків кожного продукту за документами",
+  },
+];
+
 export default function ReportsPage() {
-  // useEffect(()=>{
-  //   document.addEventListener("keydown",(e)=>{
-  //     console.log(e.keyCode)
-  //   })
-  // })
   return (
     <main className="p-4">
       <NavBar />
-      {/*<form>*/}
-      <input onKeyDown={(e)=>console.log(e.key)}/>
-        
-      {/*</form>*/}
-      <h1 className="text-3xl">Звіти</h1>
+      <h1 className="text-3xl mb-4">Звіти</h1>
+      <ul className="space-y-2">
+        {reports.map((report) => (
+          <li key={report.href}>
+            <Link
+              className="block border rounded p-4 hover:bg-blue-50"
+              href={report.href}
+            >
+              <span className="font-semibold">{report.title}</span>
+              <p className="text-sm text-gray-500">{report.description}</p>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </main>
   );
 }
