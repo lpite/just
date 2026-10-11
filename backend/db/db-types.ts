@@ -13,15 +13,16 @@ export type Generated<T> =
 export interface IncomeDocument {
   date: string | null;
   id: Generated<number>;
+  notes: Generated<string>;
   partner_id: number | null;
   posted: Generated<number>;
 }
 
 export interface IncomeDocumentItem {
-  document_id: number | null;
+  document_id: number;
   id: Generated<number | null>;
   price: Generated<number>;
-  product_id: number | null;
+  product_id: number;
   quantity: Generated<number>;
 }
 
@@ -53,7 +54,13 @@ export interface Product {
   oem: Generated<string>;
   photos: Generated<string>;
   places: Generated<string>;
-  units: Generated<string>;
+  unit_id: string;
+}
+
+export interface ProductPhoto {
+  id: Generated<number>;
+  photo: string;
+  product_id: number;
 }
 
 export interface ProductPrice {
@@ -79,6 +86,7 @@ export interface ProductStock {
 export interface SalesDocument {
   date: string | null;
   id: Generated<number>;
+  notes: Generated<string>;
   partner_id: number | null;
   posted: Generated<number | null>;
 }
@@ -92,6 +100,11 @@ export interface SalesDocumentItem {
   quantity: Generated<number>;
 }
 
+export interface Units {
+  id: Generated<number>;
+  name: string;
+}
+
 export interface DB {
   income_document: IncomeDocument;
   income_document_item: IncomeDocumentItem;
@@ -99,9 +112,11 @@ export interface DB {
   price_setting_document: PriceSettingDocument;
   price_setting_document_item: PriceSettingDocumentItem;
   product: Product;
+  product_photo: ProductPhoto;
   product_price: ProductPrice;
   product_price_latest: ProductPriceLatest;
   product_stock: ProductStock;
   sales_document: SalesDocument;
   sales_document_item: SalesDocumentItem;
+  units: Units;
 }

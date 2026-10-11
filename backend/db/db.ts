@@ -21,10 +21,29 @@ export async function initSchema() {
     .addColumn("article", "text", (c) => c.notNull().defaultTo(""))
     .addColumn("description", "text", (c) => c.notNull().defaultTo(""))
     .addColumn("brand", "text", (c) => c.notNull().defaultTo(""))
-    .addColumn("units", "text", (c) => c.notNull().defaultTo(""))
+    .addColumn("unit_id", "text", (c) => c.notNull().references("units.id"))
     .addColumn("places", "text", (c) => c.notNull().defaultTo("[]"))
     .addColumn("photos", "text", (c) => c.notNull().defaultTo("[]"))
     .execute();
+
+  await db.schema
+    .createTable("product_photo")
+    .ifNotExists()
+    .addColumn("id", "integer", (c) => c.primaryKey().notNull().autoIncrement())
+    .addColumn("product_id", "integer", (c) =>
+      c.notNull().references("product.id"),
+    )
+    .addColumn("photo", "text", (c) => c.notNull())
+    .execute();
+
+  await db.schema
+    .createTable("units")
+    .ifNotExists()
+    .addColumn("id", "integer", (c) => c.primaryKey().notNull().autoIncrement())
+    .addColumn("name", "text", (c) => c.notNull())
+    .execute();
+
+  await db.insertInto("units").values({ name: "шт" }).executeTakeFirstOrThrow();
 
   await db.schema
     .createTable("partner")
