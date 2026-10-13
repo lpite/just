@@ -21,7 +21,9 @@ export async function initSchema() {
     .addColumn("article", "text", (c) => c.notNull().defaultTo(""))
     .addColumn("description", "text", (c) => c.notNull().defaultTo(""))
     .addColumn("brand", "text", (c) => c.notNull().defaultTo(""))
-    .addColumn("unit_id", "text", (c) => c.notNull().references("units.id"))
+    .addColumn("unit_id", "text", (c) =>
+      c.notNull().defaultTo(1).references("units.id"),
+    )
     .addColumn("places", "text", (c) => c.notNull().defaultTo("[]"))
     .addColumn("photos", "text", (c) => c.notNull().defaultTo("[]"))
     .execute();
