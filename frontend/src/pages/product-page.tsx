@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { Product } from "../api/types";
 import { useProduct } from "../api/hooks/useProducts";
 import { useProductMutations } from "../api/hooks/useProductMutations";
+import * as productService from "../api/services/productService";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import { NavBar } from "../components/nav-bar";
@@ -14,7 +15,7 @@ export function ProductPage() {
   const isNew = id === "new";
   const productId = isNew ? undefined : Number(id);
 
-  const { product, isLoading: isLoadingProduct } = useProduct(productId!);
+  const { product, isLoading: isLoadingProduct, mutate } = useProduct(productId!);
   const { create, update, delete: deleteProduct } = useProductMutations();
 
   const [formData, setFormData] = useState<Product>({
@@ -31,6 +32,18 @@ export function ProductPage() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const photos = useMemo(() => {
+    try {
+      const parsed = JSON.parse(formData.photos || "[]");
+      return Array.isArray(parsed)
+        ? parsed.filter((p): p is string => typeof p === "string")
+        : [];
+    } catch {
+      return [];
+    }
+  }, [formData.photos]);
 
   useEffect(() => {
     if (product) {
@@ -84,6 +97,34 @@ export function ProductPage() {
       } catch (error) {
         console.error("Error deleting product:", error);
       }
+    }
+  };
+
+  const handlePhotoUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file || !productId) return;
+
+    setIsUploading(true);
+    try {
+      await productService.uploadProductPhoto(productId, file);
+      await mutate();
+    } catch (error) {
+      console.error("Error uploading photo:", error);
+    } finally {
+      setIsUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handlePhotoDelete = async (photo: string) => {
+    if (!productId) return;
+    try {
+      await productService.deleteProductPhoto(productId, photo);
+      await mutate();
+    } catch (error) {
+      console.error("Error deleting photo:", error);
     }
   };
 
@@ -161,14 +202,47 @@ export function ProductPage() {
               />
             </div>
             <div className="w-96">
-              <TextField
-                label="Photos (JSON array)"
-                value={formData.photos || ""}
-                onChange={handleChange("photos")}
-                fullWidth
-                multiline
-                rows={2}
-              />
+              <div className="font-semibold mb-2">Фото</div>
+              {isNew ? (
+                <div className="text-sm text-gray-500">
+                  Збережіть товар, щоб додати фото
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    disabled={isUploading}
+                  >
+                    Додати фото
+                    <input
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={handlePhotoUpload}
+                    />
+                  </Button>
+                  <div className="flex flex-wrap gap-3">
+                    {photos.map((photo) => (
+                      <div key={photo} className="relative">
+                        <img
+                          src={productService.getProductPhotoUrl(photo)}
+                          alt=""
+                          className="w-40 h-40 object-cover border rounded"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handlePhotoDelete(photo)}
+                          className="absolute top-1 right-1 bg-red-600 text-white text-sm leading-none w-6 h-6 rounded-full"
+                          title="Видалити фото"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </form>

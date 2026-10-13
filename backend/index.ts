@@ -14,6 +14,7 @@ import posRouter from "./routes/pos";
 import shopRouter from "./routes/shop";
 import searchRoutes from "./routes/search";
 import productPhotoRouter from "./routes/product-photo";
+import productPhotosRouter from "./routes/product-photos";
 
 initSchema();
 
@@ -63,6 +64,7 @@ app.route("/1c_connector/index.php", posRouter);
 app.route("/shop/hs", shopRouter);
 app.route("/search", searchRoutes);
 app.route("/api/get-photo.php", productPhotoRouter);
+app.route("/api/product-photos", productPhotosRouter);
 
 app.use("*", serveStatic({ root: "./static" }));
 app.get(

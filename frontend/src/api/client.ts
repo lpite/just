@@ -128,6 +128,38 @@ export async function apiDelete<T>(path: string): Promise<T> {
 }
 
 /**
+ * Multipart upload (FormData). Does not set Content-Type so the browser
+ * adds the multipart boundary automatically.
+ */
+export async function apiUpload<T>(
+  path: string,
+  formData: FormData,
+): Promise<T> {
+  const url = `${API_BASE_URL}${path.startsWith("/") ? path : "/" + path}`;
+
+  try {
+    const response = await fetch(url, { method: "POST", body: formData });
+
+    const contentType = response.headers.get("content-type");
+    const data: unknown = contentType?.includes("application/json")
+      ? await response.json()
+      : await response.text();
+
+    if (!response.ok) {
+      const errorMessage =
+        (data as ApiResponse)?.error ||
+        (typeof data === "string" ? data : `HTTP ${response.status}`);
+      throw new Error(errorMessage);
+    }
+
+    return data as T;
+  } catch (error) {
+    console.error(`API Error [POST ${path}]:`, error);
+    throw error;
+  }
+}
+
+/**
  * Build query string from parameters
  */
 export function buildQueryString(params: Record<string, any>): string {
